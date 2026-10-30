@@ -15,72 +15,7 @@ const TAMANHO_MAXIMO_TITULO = 200;
 @Component({
   selector: 'app-reserva-form',
   imports: [ReactiveFormsModule, RouterLink, Alerta],
-  template: `
-    <section class="cartao estreito">
-      <h1>{{ edicao() ? 'Editar reserva' : 'Nova reserva' }}</h1>
-
-      @if (erro(); as mensagem) {
-        <app-alerta [mensagem]="mensagem" />
-      }
-      @if (bloqueada()) {
-        <app-alerta
-          tipo="aviso"
-          mensagem="Você não pode editar esta reserva: ela é de outro usuário, foi cancelada ou já terminou."
-        />
-      }
-
-      <form [formGroup]="form" (ngSubmit)="salvar()">
-        <label>
-          Sala
-          <select formControlName="salaId">
-            <option [ngValue]="null" disabled>Selecione…</option>
-            @for (sala of salas(); track sala.id) {
-              <option [ngValue]="sala.id">{{ sala.nome }} ({{ sala.capacidade }} lugares)</option>
-            }
-          </select>
-        </label>
-        @if (form.controls.salaId.touched && form.controls.salaId.hasError('required')) {
-          <span class="erro-campo">Selecione a sala.</span>
-        }
-
-        <label>
-          Título
-          <input formControlName="titulo" [maxlength]="tamanhoMaximoTitulo" />
-        </label>
-        @if (form.controls.titulo.touched && form.controls.titulo.hasError('required')) {
-          <span class="erro-campo">Informe o título.</span>
-        }
-
-        <div class="linha">
-          <label>
-            Início
-            <input formControlName="inicio" type="datetime-local" />
-          </label>
-          <label>
-            Fim
-            <input formControlName="fim" type="datetime-local" />
-          </label>
-        </div>
-        @if (form.controls.inicio.touched && form.controls.inicio.hasError('required')) {
-          <span class="erro-campo">Informe o início.</span>
-        }
-        @if (form.controls.fim.touched && form.controls.fim.hasError('required')) {
-          <span class="erro-campo">Informe o fim.</span>
-        }
-        @if (form.hasError('fimAntesDoInicio') && (form.controls.inicio.touched || form.controls.fim.touched)) {
-          <span class="erro-campo">O fim deve ser posterior ao início.</span>
-        }
-        <small class="dica">Horários no fuso do seu navegador.</small>
-
-        <div class="acoes-form">
-          <a routerLink="/reservas" class="botao secundario">Voltar</a>
-          <button type="submit" [disabled]="salvando() || bloqueada()">
-            {{ salvando() ? 'Salvando…' : 'Salvar' }}
-          </button>
-        </div>
-      </form>
-    </section>
-  `,
+  templateUrl: './reserva-form.html',
 })
 export class ReservaForm implements OnInit {
   /** Parâmetro :id da rota (withComponentInputBinding); ausente na criação. */

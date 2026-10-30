@@ -5,11 +5,6 @@ import { Cabecalho } from './shared/cabecalho';
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, Cabecalho],
-  template: `
-    <app-cabecalho />
-    <main class="conteudo">
-      <router-outlet />
-    </main>
-  `,
+  templateUrl: './app.html',
 })
 export class App {}

@@ -1,0 +1,67 @@
+<section class="cartao">
+  <div class="titulo-secao">
+    <h1>Reservas</h1>
+    <a routerLink="/reservas/nova" class="botao">Nova reserva</a>
+  </div>
+
+  @if (erro(); as mensagem) {
+    <app-alerta [mensagem]="mensagem" />
+  }
+
+  @if (carregando() && reservas().length === 0) {
+    <p>Carregando…</p>
+  } @else if (reservas().length === 0) {
+    <p>Nenhuma reserva cadastrada.</p>
+  } @else {
+    <div class="tabela-rolavel">
+      <table>
+        <thead>
+          <tr>
+            <th>Sala</th>
+            <th>Título</th>
+            <th>Responsável</th>
+            <th>Início</th>
+            <th>Fim</th>
+            <th>Status</th>
+            <th><span class="sr-only">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (reserva of reservas(); track reserva.id) {
+            <tr [class.cancelada]="reserva.status === 'Cancelada'">
+              <td>{{ reserva.sala.nome }}</td>
+              <td>{{ reserva.titulo }}</td>
+              <td>{{ reserva.responsavel.nome }}</td>
+              <td>{{ reserva.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td>{{ reserva.fim | date: 'dd/MM/yyyy HH:mm' }}</td>
+              <td>
+                <span class="selo" [class.ativa]="reserva.status === 'Ativa'">{{
+                  reserva.status
+                }}</span>
+              </td>
+              <td>
+                <div class="acoes">
+                  @if (reserva.podeEditar) {
+                    <a [routerLink]="['/reservas', reserva.id, 'editar']" class="botao secundario"
+                      >Editar</a
+                    >
+                  }
+                  @if (reserva.podeCancelar) {
+                    <button
+                      type="button"
+                      class="perigo"
+                      [disabled]="cancelando() === reserva.id"
+                      (click)="cancelar(reserva)"
+                    >
+                      Cancelar
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
