@@ -65,8 +65,16 @@ Datas devem ser enviadas em ISO 8601 **com fuso explícito** (`2030-01-15T13:00:
 
 ```bash
 cd backend
-dotnet test                                  # todos
-dotnet test --filter-trait "Category=Unit"   # só unitários
+dotnet test                                         # todos (precisa do Docker rodando)
+dotnet test --filter-trait "Category=Unit"          # só unitários
+dotnet test --filter-trait "Category=Integration"   # só integração
+```
+
+- **Testes de integração** rodam contra um SQL Server 2022 real, num container criado pelo Testcontainers. Basta o Docker estar rodando. A primeira execução baixa a imagem (~1,5 GB).
+- **Sem Docker**, aponte para uma instância existente pela variável de ambiente `RESERVASALAS_TESTES_SQL` (uma connection string). Os testes usam o banco `ReservaSalasTestes` nessa instância e **o recriam a cada execução**, então não aponte para um banco com dados que importam.
+
+```bash
+export RESERVASALAS_TESTES_SQL="Server=localhost;Trusted_Connection=True;TrustServerCertificate=True"
 ```
 
 O projeto usa xUnit v3 com a Microsoft.Testing.Platform, habilitada em `backend/global.json`. No SDK do .NET 10, o runner antigo (VSTest) não é mais suportado para o xUnit v3.
@@ -162,6 +170,24 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 - **Nenhum detalhe interno fora do ambiente de desenvolvimento:** o 500 traz só uma mensagem genérica e o `traceId`, que permite achar o log correspondente. Em Development, a resposta também inclui a exceção.
 - **Respostas de erro sem corpo** (o 401 do JwtBearer, o 429 do rate limiter, o 404 de rota) também viram Problem Details, via `UseStatusCodePages()`.
 
+### Testes
+
+- **Unitários** (`Unit/`): RN01 a RN04, a tabela da seção 3.3 transcrita linha a linha, as permissões e as decisões adicionais. Testam o domínio puro, com o "agora" fixo passado como parâmetro.
+- **Integração** (`Integration/`): a API real em memória (`WebApplicationFactory`), com login de verdade pelos usuários do seed, contra um SQL Server real. Um único container para toda a execução (assembly fixture do xUnit v3). Cada teste usa um dia futuro exclusivo, então os testes rodam em paralelo sem limpar o banco.
+  - **T1:** 20 requisições simultâneas e sobrepostas, divididas entre **duas instâncias independentes da API** que compartilham o banco, como duas réplicas atrás de um balanceador. Exatamente uma recebe 201, as outras 19 recebem 409, e o banco tem uma única reserva ativa no intervalo. Um lock em memória passaria com uma instância só e falharia aqui.
+  - **T2:** a falha é forçada **dentro do SQL Server**, por uma CHECK constraint temporária que rejeita o histórico de títulos com um marcador. Quando ela dispara, a reserva já foi inserida na transação, então a ausência da reserva prova o rollback. Cobre a criação e a edição. Um trigger foi descartado: o SQL Server proíbe triggers em tabelas gravadas com `OUTPUT` sem `INTO`, que é como o EF Core lê os Ids gerados, e o trigger quebrava os inserts dos outros testes. Um interceptor do EF, por sua vez, poderia abortar o lote antes de qualquer insert chegar ao banco, e o teste passaria sem provar nada.
+  - **T3:** um usuário Comum recebe 403 ao editar e ao cancelar a reserva de outro, e o estado no banco (incluindo a quantidade de registros de histórico) é idêntico antes e depois. Um teste de controle confirma que o administrador consegue cancelar.
+- **Os testes pegam as falhas que deveriam pegar.** O `ReservaService` foi sabotado de propósito, e cada sabotagem foi desfeita depois:
+
+| Sabotagem | Testes que falharam |
+|---|---|
+| Remover o lock da sala | T1 |
+| Remover a verificação de propriedade | T3 |
+| Gravar reserva e histórico em dois `SaveChanges`, sem transação explícita | T2 (criação) **e T1** |
+| Dois `SaveChanges`, com a transação explícita | nenhum |
+
+  A terceira linha mostra que a transação explícita tem **duas** funções: atomicidade (T2) e **manter o lock** até o commit. Sem uma transação, o `UPDLOCK` é liberado ao fim do próprio `SELECT`, e a exclusão mútua deixa de existir (T1).
+
 ### Modelo de dados e índices
 
 - **A disponibilidade não é um campo da sala.** Ela é calculada a partir das reservas ativas, como pede o enunciado.
@@ -204,7 +230,7 @@ COMMIT                                                            -- libera a sa
 
 **Custo conhecido:** escritas na mesma sala são serializadas mesmo quando os horários não se sobrepõem. Para salas de reunião, o volume de escritas por sala é baixo demais para isso importar.
 
-**Verificação:** com 20 requisições simultâneas e sobrepostas na mesma sala, o `ReservaService` criou 1 reserva e rejeitou 19 por conflito. Uma versão sem o lock, com a mesma transação, criou as 20. O SQL gerado para `ConflitaCom` contém o literal `[Status] = N'Ativa'`, condição para o SQL Server usar o índice filtrado. O teste de integração T1 cobre esse cenário de forma automatizada.
+**Verificação:** com 20 requisições simultâneas e sobrepostas na mesma sala, o `ReservaService` criou 1 reserva e rejeitou 19 por conflito. Uma versão sem o lock, com a mesma transação, criou as 20. O SQL gerado para `ConflitaCom` contém o literal `[Status] = N'Ativa'`, condição para o SQL Server usar o índice filtrado. O teste de integração T1 cobre esse cenário de forma automatizada, com duas instâncias da API.
 
 ### Histórico (RN05)
 
