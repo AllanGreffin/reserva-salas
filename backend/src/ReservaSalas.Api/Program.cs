@@ -9,6 +9,8 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using ReservaSalas.Api.Autenticacao;
 using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Erros;
+using ReservaSalas.Api.Json;
 using ReservaSalas.Api.Reservas;
 using ReservaSalas.Domain;
 
@@ -20,6 +22,11 @@ builder.Services.AddDbContext<ReservasDbContext>(options =>
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ReservaService>();
+builder.Services.AddScoped<ReservaConsultas>();
+
+// Erros: toda resposta de erro em Problem Details (RFC 9457)
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<TratadorDeExcecoes>();
 
 // Autenticação (JWT)
 builder.Services.AddOptions<JwtOptions>()
@@ -70,10 +77,18 @@ builder.Services.AddRateLimiter(opcoes =>
 });
 
 builder.Services.AddControllers()
-    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+    .AddJsonOptions(o =>
+    {
+        o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        o.JsonSerializerOptions.Converters.Add(new DateTimeOffsetComFusoConverter());
+    });
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+app.UseExceptionHandler();
+// Respostas de erro sem corpo (401 do JwtBearer, 429 do rate limiter, 404 de rota) também viram Problem Details.
+app.UseStatusCodePages();
 
 if (app.Environment.IsDevelopment())
 {

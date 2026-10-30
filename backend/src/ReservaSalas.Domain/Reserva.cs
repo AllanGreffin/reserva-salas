@@ -38,10 +38,10 @@ public class Reserva
 
     public void Editar(int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, DateTimeOffset agora)
     {
-        if (Status == StatusReserva.Cancelada)
+        if (EstaCancelada)
             throw new RegraNegocioException("RN04", "Reservas canceladas não podem ser editadas.");
 
-        if (Fim <= agora)
+        if (EstaEncerrada(agora))
             throw new RegraNegocioException("RESERVA_ENCERRADA", "Reservas que já terminaram não podem ser editadas.");
 
         ValidarTitulo(titulo);
@@ -59,7 +59,7 @@ public class Reserva
 
     public void Cancelar()
     {
-        if (Status == StatusReserva.Cancelada)
+        if (EstaCancelada)
             throw new RegraNegocioException("RESERVA_JA_CANCELADA", "A reserva já está cancelada.");
 
         Status = StatusReserva.Cancelada;
@@ -70,6 +70,19 @@ public class Reserva
     /// </summary>
     public bool PodeSerAlteradaPor(int usuarioId, PerfilUsuario perfil) =>
         perfil == PerfilUsuario.Administrador || UsuarioId == usuarioId;
+
+    // Indicam à interface quais ações oferecer, com os mesmos predicados que Editar e Cancelar aplicam.
+    // São um retrato do momento da consulta: cada operação revalida tudo ao ser executada.
+
+    public bool PodeSerEditadaPor(int usuarioId, PerfilUsuario perfil, DateTimeOffset agora) =>
+        PodeSerAlteradaPor(usuarioId, perfil) && !EstaCancelada && !EstaEncerrada(agora);
+
+    public bool PodeSerCanceladaPor(int usuarioId, PerfilUsuario perfil) =>
+        PodeSerAlteradaPor(usuarioId, perfil) && !EstaCancelada;
+
+    private bool EstaCancelada => Status == StatusReserva.Cancelada;
+
+    private bool EstaEncerrada(DateTimeOffset agora) => Fim <= agora;
 
     /// <summary>
     /// RN03: reservas ativas da mesma sala cujo intervalo [Inicio, Fim) se sobrepõe a [inicio, fim).

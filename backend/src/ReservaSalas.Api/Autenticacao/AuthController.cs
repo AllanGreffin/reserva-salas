@@ -37,7 +37,8 @@ public class AuthController(ReservasDbContext db, TokenService tokens, IPassword
 
         var resultado = hasher.VerifyHashedPassword(usuario!, usuario?.SenhaHash ?? HashFalso, request.Senha);
         if (usuario is null || resultado == PasswordVerificationResult.Failed)
-            return Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Login ou senha inválidos.");
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized, title: "Não autorizado", detail: "Login ou senha inválidos.");
 
         var (token, expiraEm) = tokens.Gerar(usuario);
         return new LoginResponse(token, expiraEm, new UsuarioResponse(usuario.Id, usuario.Nome, usuario.Perfil));

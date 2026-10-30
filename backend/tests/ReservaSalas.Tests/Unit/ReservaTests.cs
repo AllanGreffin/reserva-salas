@@ -136,6 +136,44 @@ public class ReservaTests
         Assert.Equal(esperado, CriarReserva().PodeSerAlteradaPor(usuarioId, perfil));
     }
 
+    [Fact]
+    public void Reserva_ativa_e_futura_pode_ser_editada_e_cancelada_pelo_dono()
+    {
+        var reserva = CriarReserva();
+
+        Assert.True(reserva.PodeSerEditadaPor(UsuarioId, PerfilUsuario.Comum, Agora));
+        Assert.True(reserva.PodeSerCanceladaPor(UsuarioId, PerfilUsuario.Comum));
+    }
+
+    [Fact]
+    public void Reserva_de_outro_usuario_nao_oferece_acoes_a_um_usuario_comum()
+    {
+        var reserva = CriarReserva();
+
+        Assert.False(reserva.PodeSerEditadaPor(UsuarioId + 1, PerfilUsuario.Comum, Agora));
+        Assert.False(reserva.PodeSerCanceladaPor(UsuarioId + 1, PerfilUsuario.Comum));
+    }
+
+    [Fact]
+    public void Reserva_cancelada_nao_oferece_acoes_nem_ao_administrador()
+    {
+        var reserva = CriarReserva();
+        reserva.Cancelar();
+
+        Assert.False(reserva.PodeSerEditadaPor(UsuarioId, PerfilUsuario.Administrador, Agora));
+        Assert.False(reserva.PodeSerCanceladaPor(UsuarioId, PerfilUsuario.Administrador));
+    }
+
+    [Fact]
+    public void Reserva_encerrada_pode_ser_cancelada_mas_nao_editada()
+    {
+        var reserva = CriarReserva(inicioEmHoras: 1, fimEmHoras: 2);
+        var depoisDoFim = Agora.AddHours(2);
+
+        Assert.False(reserva.PodeSerEditadaPor(UsuarioId, PerfilUsuario.Comum, depoisDoFim));
+        Assert.True(reserva.PodeSerCanceladaPor(UsuarioId, PerfilUsuario.Comum));
+    }
+
     // Decisões adicionais (README)
 
     [Fact]
