@@ -48,6 +48,19 @@ cd backend
 dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://localhost:5221
 ```
 
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/api/auth/login` | Login (anônimo). Devolve o token, a expiração e o usuário. |
+| `GET` | `/api/auth/eu` | Usuário do token |
+| `GET` | `/api/salas` | Salas |
+| `GET` | `/api/reservas` | Reservas, com `podeEditar` e `podeCancelar` para o usuário autenticado |
+| `GET` | `/api/reservas/{id}` | Uma reserva |
+| `POST` | `/api/reservas` | Cria (201 + `Location`) |
+| `PUT` | `/api/reservas/{id}` | Edita título, sala e horário |
+| `POST` | `/api/reservas/{id}/cancelamento` | Cancela |
+
+Datas devem ser enviadas em ISO 8601 **com fuso explícito** (`2030-01-15T13:00:00Z` ou `2030-01-15T10:00:00-03:00`).
+
 ## Como executar os testes
 
 ```bash
@@ -126,6 +139,29 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 - **Propriedade (403):** `Reserva.PodeSerAlteradaPor` (dono ou administrador) fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
 - **O responsável é sempre o usuário do token:** os DTOs de entrada não têm campo de usuário, então o cliente não consegue forjar o dono da reserva.
 
+### Endpoints e tratamento de erros
+
+- **Controllers finos:** só traduzem HTTP. As regras ficam no domínio, a escrita no `ReservaService` (transação + lock) e a leitura no `ReservaConsultas`. Essa separação mantém o serviço de escrita focado no protocolo de concorrência.
+- **Cancelamento é `POST /api/reservas/{id}/cancelamento`, não `DELETE`:** a RN04 diz que cancelar não exclui, e um `DELETE` que não apaga enganaria quem consome a API. A edição é `PUT` porque o cliente envia todos os campos editáveis.
+- **`podeEditar` e `podeCancelar` na resposta:** são calculados pelos mesmos métodos do domínio que protegem as operações (`PodeSerEditadaPor`, `PodeSerCanceladaPor`), então o frontend não reimplementa regra nenhuma para decidir os botões. Por isso a listagem carrega as entidades, em vez de projetar em SQL. Os flags são um retrato do momento da consulta: se o estado mudar antes da ação (a reserva terminou ou foi cancelada por outro), o backend revalida e responde com o erro adequado. Não são controle de acesso.
+- **Tratamento global com `IExceptionHandler` e Problem Details (RFC 9457) em todas as respostas de erro** (diferencial D2):
+
+| Situação | Status |
+|---|---|
+| Corpo inválido, campo ausente, data sem fuso | 400 (`ValidationProblemDetails`, automático pelo `[ApiController]`) |
+| Sem token, token inválido ou expirado | 401 |
+| Reserva de outro usuário (sem ser administrador) | 403 |
+| Reserva inexistente | 404 |
+| Conflito de horário (RN03) | 409 |
+| Regra de negócio (RN01, RN02, RN04, reserva encerrada, sala inexistente) | 422, com o campo `codigo` |
+| Tentativas de login demais | 429 |
+| Erro inesperado | 500, com mensagem genérica |
+
+- **422 para regra de negócio, 400 para requisição malformada:** a requisição de um 422 é bem formada, mas a operação não é permitida. O 409 fica reservado para o conflito de horário, para que o frontend dê um feedback específico ("horário ocupado").
+- **Só erros inesperados são logados como erro**, via `ILogger`, com método e caminho. Exceções de regra são comportamento esperado; registrá-las como erro geraria ruído e alarmes falsos.
+- **Nenhum detalhe interno fora do ambiente de desenvolvimento:** o 500 traz só uma mensagem genérica e o `traceId`, que permite achar o log correspondente. Em Development, a resposta também inclui a exceção.
+- **Respostas de erro sem corpo** (o 401 do JwtBearer, o 429 do rate limiter, o 404 de rota) também viram Problem Details, via `UseStatusCodePages()`.
+
 ### Modelo de dados e índices
 
 - **A disponibilidade não é um campo da sala.** Ela é calculada a partir das reservas ativas, como pede o enunciado.
@@ -180,6 +216,7 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 - **Por que não `DateTime` em UTC:** o SQL Server não guarda o `Kind`. O EF Core devolve `DateTimeKind.Unspecified`, e o JSON sai sem o sufixo `Z`, o que faz o navegador interpretar o valor como hora local. Isso só se resolve com um `ValueConverter` que alguém pode esquecer. Hora local sem fuso foi descartada por ser exatamente o caso que a RN06 proíbe.
 - **Comparações corretas:** em `datetimeoffset`, o SQL Server compara pelo instante UTC, então a verificação de conflito da RN03 continua correta mesmo com offsets diferentes.
 - **Tráfego:** ISO 8601 com offset. O frontend envia em UTC (`toISOString()`) e converte para o fuso do navegador só na exibição.
+- **Datas sem fuso são rejeitadas na entrada (400).** Por padrão, o System.Text.Json aceita `"2030-01-15T10:00:00"` e assume o fuso do servidor, então a mesma requisição significaria instantes diferentes conforme a máquina. Um `JsonConverter<DateTimeOffset>` exige `Z` ou `±hh:mm`.
 - **"Agora" injetável:** a RN02 depende do horário atual, então ele vem de `TimeProvider` (substituído por `FakeTimeProvider` nos testes). O domínio recebe o instante como parâmetro e continua sem dependências.
 
 ### XSS e armazenamento do token
@@ -192,4 +229,6 @@ _A definir._
 
 ### O que ficou de fora, melhorias e limitações conhecidas
 
-_A definir._
+_Em construção._
+
+- **Sem retry automático de falhas transitórias do banco (`EnableRetryOnFailure`).** A estratégia de retry do EF Core é incompatível com transações abertas manualmente, como as do `ReservaService`, a menos que cada operação seja envolvida em `Database.CreateExecutionStrategy().ExecuteAsync(...)`. Para um SQL Server local ou em container, falhas transitórias são raras. Num banco em nuvem (Azure SQL), esse seria o próximo passo.
