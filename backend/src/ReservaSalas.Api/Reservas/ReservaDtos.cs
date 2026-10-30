@@ -34,3 +34,5 @@ public record ReservaResponse(
     byte[] Versao);
 
 public record SalaResponse(int Id, string Nome, int Capacidade);
+
+public record PaginaResponse<T>(IReadOnlyList<T> Itens, int Pagina, int TamanhoPagina, int TotalItens, int TotalPaginas);

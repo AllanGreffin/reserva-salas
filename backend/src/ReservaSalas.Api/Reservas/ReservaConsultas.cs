@@ -12,11 +12,39 @@ namespace ReservaSalas.Api.Reservas;
 /// </summary>
 public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
 {
-    public async Task<IReadOnlyList<ReservaResponse>> ListarAsync(UsuarioAtual usuario, CancellationToken ct)
+    public async Task<PaginaResponse<ReservaResponse>> ListarAsync(
+        FiltroReservas filtro, UsuarioAtual usuario, CancellationToken ct)
     {
-        var reservas = await Consulta().OrderBy(r => r.Inicio).ToListAsync(ct);
+        var consulta = db.Reservas.AsNoTracking();
+
+        if (filtro.SalaId is { } salaId)
+            consulta = consulta.Where(r => r.SalaId == salaId);
+
+        // Sobreposição com o período [de, ate), como na RN03 (aqui incluindo as canceladas).
+        if (filtro.InicioDoPeriodo is { } de)
+            consulta = consulta.Where(r => r.Fim > de);
+        if (filtro.FimDoPeriodo is { } ate)
+            consulta = consulta.Where(r => r.Inicio < ate);
+
+        var totalItens = await consulta.CountAsync(ct);
+
+        // Ordenação determinística: o desempate por Id impede que reservas no mesmo horário troquem de
+        // posição entre consultas e apareçam em duas páginas (ou em nenhuma).
+        var reservas = await consulta
+            .Include(r => r.Sala)
+            .Include(r => r.Usuario)
+            .OrderBy(r => r.Inicio).ThenBy(r => r.Id)
+            .Skip((filtro.Pagina - 1) * filtro.TamanhoPagina)
+            .Take(filtro.TamanhoPagina)
+            .ToListAsync(ct);
+
         var agora = relogio.GetUtcNow();
-        return reservas.Select(r => ParaResponse(r, usuario, agora)).ToList();
+        return new PaginaResponse<ReservaResponse>(
+            reservas.Select(r => ParaResponse(r, usuario, agora)).ToList(),
+            filtro.Pagina,
+            filtro.TamanhoPagina,
+            totalItens,
+            (int)Math.Ceiling(totalItens / (double)filtro.TamanhoPagina));
     }
 
     public async Task<ReservaResponse> ObterAsync(int id, UsuarioAtual usuario, CancellationToken ct)

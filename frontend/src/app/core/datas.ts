@@ -8,6 +8,21 @@ export function localParaUtc(valorDoCampo: string): string {
   return new Date(valorDoCampo).toISOString();
 }
 
+/** "2030-01-15" (dia no fuso do navegador) → início desse dia, em UTC. */
+export function inicioDoDiaUtc(dia: string): string {
+  return new Date(`${dia}T00:00`).toISOString();
+}
+
+/**
+ * "2030-01-15" → início do dia SEGUINTE, em UTC. Usado como limite exclusivo de um período, para que o
+ * dia informado entre inteiro: "até 15/01" = [..., 16/01 00:00).
+ */
+export function fimDoDiaUtc(dia: string): string {
+  const data = new Date(`${dia}T00:00`);
+  data.setDate(data.getDate() + 1);
+  return data.toISOString();
+}
+
 /** ISO 8601 da API → "yyyy-MM-ddTHH:mm" no fuso do navegador, para preencher o campo. */
 export function utcParaLocal(iso: string): string {
   const data = new Date(iso);
