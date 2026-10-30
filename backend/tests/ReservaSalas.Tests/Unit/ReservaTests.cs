@@ -125,6 +125,17 @@ public class ReservaTests
         AssertViolacao("RESERVA_JA_CANCELADA", reserva.Cancelar);
     }
 
+    // Permissões (seção 4)
+
+    [Theory]
+    [InlineData(UsuarioId, PerfilUsuario.Comum, true)]          // dono
+    [InlineData(UsuarioId + 1, PerfilUsuario.Comum, false)]     // outro usuário comum
+    [InlineData(UsuarioId + 1, PerfilUsuario.Administrador, true)] // administrador
+    public void Somente_o_dono_ou_um_administrador_pode_alterar(int usuarioId, PerfilUsuario perfil, bool esperado)
+    {
+        Assert.Equal(esperado, CriarReserva().PodeSerAlteradaPor(usuarioId, perfil));
+    }
+
     // Decisões adicionais (README)
 
     [Fact]

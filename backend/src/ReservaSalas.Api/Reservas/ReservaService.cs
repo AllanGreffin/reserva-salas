@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using ReservaSalas.Api.Autenticacao;
 using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
 using ReservaSalas.Domain;
@@ -10,7 +11,8 @@ namespace ReservaSalas.Api.Reservas;
 /// <summary>
 /// Único ponto de escrita de reservas. Cada operação roda numa transação explícita que inclui
 /// o registro de histórico (RN05). Criação e edição seguem o protocolo de exclusão mútua da RN03:
-/// bloquear a sala, verificar conflito e gravar, tudo antes do commit.
+/// bloquear a sala, verificar conflito e gravar, tudo antes do commit. Editar e cancelar verificam
+/// a propriedade (seção 4) depois de carregar a reserva e antes de alterá-la.
 /// </summary>
 public class ReservaService(ReservasDbContext db, TimeProvider relogio)
 {
@@ -20,10 +22,11 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
     };
 
     public async Task<Reserva> CriarAsync(
-        int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, int usuarioId, CancellationToken ct)
+        int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, UsuarioAtual usuario,
+        CancellationToken ct)
     {
         var agora = relogio.GetUtcNow();
-        var reserva = Reserva.Criar(salaId, usuarioId, titulo, inicio, fim, agora);
+        var reserva = Reserva.Criar(salaId, usuario.Id, titulo, inicio, fim, agora);
 
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
@@ -31,7 +34,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         await GarantirSemConflitoAsync(reserva, ct);
 
         db.Reservas.Add(reserva);
-        RegistrarHistorico(reserva, AcaoReserva.Criacao, usuarioId, agora, antes: null);
+        RegistrarHistorico(reserva, AcaoReserva.Criacao, usuario.Id, agora, antes: null);
 
         await db.SaveChangesAsync(ct);
         await transacao.CommitAsync(ct);
@@ -40,14 +43,14 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
     }
 
     public async Task<Reserva> EditarAsync(
-        int reservaId, int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, int usuarioId,
+        int reservaId, int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, UsuarioAtual usuario,
         CancellationToken ct)
     {
         var agora = relogio.GetUtcNow();
 
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
-        var reserva = await ObterAsync(reservaId, ct);
+        var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
         var antes = Dados(reserva);
         reserva.Editar(salaId, titulo, inicio, fim, agora);
 
@@ -55,7 +58,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         await BloquearSalaAsync(salaId, ct);
         await GarantirSemConflitoAsync(reserva, ct);
 
-        RegistrarHistorico(reserva, AcaoReserva.Edicao, usuarioId, agora, antes);
+        RegistrarHistorico(reserva, AcaoReserva.Edicao, usuario.Id, agora, antes);
 
         await db.SaveChangesAsync(ct);
         await transacao.CommitAsync(ct);
@@ -63,18 +66,18 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         return reserva;
     }
 
-    public async Task<Reserva> CancelarAsync(int reservaId, int usuarioId, CancellationToken ct)
+    public async Task<Reserva> CancelarAsync(int reservaId, UsuarioAtual usuario, CancellationToken ct)
     {
         var agora = relogio.GetUtcNow();
 
         // Cancelar só libera horário, então não precisa do lock da sala.
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
-        var reserva = await ObterAsync(reservaId, ct);
+        var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
         var antes = Dados(reserva);
         reserva.Cancelar();
 
-        RegistrarHistorico(reserva, AcaoReserva.Cancelamento, usuarioId, agora, antes);
+        RegistrarHistorico(reserva, AcaoReserva.Cancelamento, usuario.Id, agora, antes);
 
         await db.SaveChangesAsync(ct);
         await transacao.CommitAsync(ct);
@@ -107,9 +110,17 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
             throw new ConflitoDeHorarioException();
     }
 
-    private async Task<Reserva> ObterAsync(int reservaId, CancellationToken ct) =>
-        await db.Reservas.FirstOrDefaultAsync(r => r.Id == reservaId, ct)
+    // 404 antes de 403: todas as reservas são visíveis a todos, então a existência não é segredo.
+    private async Task<Reserva> ObterParaAlteracaoAsync(int reservaId, UsuarioAtual usuario, CancellationToken ct)
+    {
+        var reserva = await db.Reservas.FirstOrDefaultAsync(r => r.Id == reservaId, ct)
             ?? throw new RecursoNaoEncontradoException("Reserva não encontrada.");
+
+        if (!reserva.PodeSerAlteradaPor(usuario.Id, usuario.Perfil))
+            throw new AcessoNegadoException();
+
+        return reserva;
+    }
 
     private void RegistrarHistorico(
         Reserva reserva, AcaoReserva acao, int usuarioId, DateTimeOffset agora, DadosReserva? antes)

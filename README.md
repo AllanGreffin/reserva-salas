@@ -26,7 +26,27 @@ dotnet tool restore
 dotnet ef database update -p src/ReservaSalas.Api
 ```
 
-O `dotnet-ef` é uma ferramenta local (`backend/dotnet-tools.json`), com a versão fixada no repositório.
+O `dotnet-ef` é uma ferramenta local (`backend/dotnet-tools.json`), com a versão fixada no repositório. A migration `Seed` cria as salas e os usuários.
+
+### Chave de assinatura do JWT
+
+A chave **não fica em nenhum arquivo versionado**. A API não sobe se ela estiver ausente ou tiver menos de 32 caracteres.
+
+Em desenvolvimento, use user-secrets (gravados fora do repositório, no perfil do usuário):
+
+```bash
+cd backend
+dotnet user-secrets set "Jwt:ChaveAssinatura" "<uma chave aleatória com pelo menos 32 caracteres>" --project src/ReservaSalas.Api
+```
+
+Em containers ou em produção, use a variável de ambiente `Jwt__ChaveAssinatura`.
+
+### API
+
+```bash
+cd backend
+dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://localhost:5221
+```
 
 ## Como executar os testes
 
@@ -40,7 +60,13 @@ O projeto usa xUnit v3 com a Microsoft.Testing.Platform, habilitada em `backend/
 
 ## Usuários do seed
 
-_A definir._
+| Login | Senha | Perfil |
+|---|---|---|
+| `ana` | `Ana@2026` | Comum |
+| `bruno` | `Bruno@2026` | Comum |
+| `admin` | `Admin@2026` | Administrador |
+
+Salas: Sala Azul (4 lugares), Sala Verde (8) e Auditório (30).
 
 ## Tempo dedicado
 
@@ -87,6 +113,18 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 - **RN03 tem uma única definição:** `Reserva.ConflitaCom` devolve uma `Expression<Func<Reserva, bool>>`. O EF Core traduz essa expression para SQL na verificação de conflito, e os testes unitários a compilam e executam em memória. Assim, a regra testada e a regra aplicada no banco não podem divergir.
 - **O domínio valida o título** (obrigatório, até 200 caracteres) mesmo com a validação da API. É defesa em profundidade: o domínio não depende de quem o chama.
 - **Testes:** xUnit v3 (a v2 está em modo de manutenção) e asserções do próprio xUnit. FluentAssertions foi evitado porque a licença passou a ser comercial a partir da v8.
+
+### Autenticação e autorização
+
+- **Senhas:** `PasswordHasher<T>` do ASP.NET Core Identity (PBKDF2-HMAC-SHA512, 100 mil iterações, salt aleatório, formato versionado), **sem** adotar o Identity completo. As tabelas, o `UserManager` e os fluxos de cadastro do Identity seriam desproporcionais para três usuários fixos. BCrypt e Argon2 exigiriam bibliotecas de terceiros.
+- **Seed via `HasData` numa migration:** o seed é versionado com o schema e aplicado pelo mesmo `database update`, inclusive nos testes de integração. Os hashes foram gerados uma única vez e estão como literais. Um hash com salt não revela a senha, e as senhas de demonstração estão documentadas acima, como pede o enunciado.
+- **JWT HS256 com expiração de 1 hora, sem refresh token.** HS256 basta porque a própria API emite e valida os tokens. Validação de emissor, audiência, tempo de vida, assinatura e algoritmo. O `ClockSkew` foi reduzido para 30 segundos: o padrão do ASP.NET aceita tokens até 5 minutos depois de expirados.
+- **Claims:** `sub` (id), `name` e `role` (perfil). O perfil vem do token, e não de uma releitura do banco: a API fica stateless, ao custo de uma mudança de perfil só valer após a expiração do token.
+- **Login:** `POST /api/auth/login`. Credenciais inválidas retornam 401 com uma mensagem genérica. Quando o login não existe, o código ainda verifica um hash falso, para que o tempo de resposta não revele quais logins existem (medido: ~80 ms para login existente e ~74 ms para inexistente; sem isso, o inexistente responderia em 1 ou 2 ms).
+- **Rate limiting no login:** 5 tentativas por minuto por IP (429 depois disso), configurável em `Login:TentativasPorMinuto`. Limitações conhecidas: o contador fica em memória, por instância, e atrás de um proxy seria preciso configurar `ForwardedHeaders` para obter o IP real. É uma proteção de melhor esforço contra força bruta, diferente da exclusão mútua, que precisa ser exata e por isso fica no banco.
+- **Seguro por padrão:** uma *fallback policy* exige autenticação em todos os endpoints. Só o login (e o OpenAPI em desenvolvimento) é anônimo.
+- **Propriedade (403):** `Reserva.PodeSerAlteradaPor` (dono ou administrador) fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
+- **O responsável é sempre o usuário do token:** os DTOs de entrada não têm campo de usuário, então o cliente não consegue forjar o dono da reserva.
 
 ### Modelo de dados e índices
 
