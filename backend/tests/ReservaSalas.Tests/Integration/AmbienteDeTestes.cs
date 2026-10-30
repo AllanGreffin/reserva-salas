@@ -102,6 +102,9 @@ public class ApiDeTestes(string connectionString) : WebApplicationFactory<Progra
     }
 }
 
+/// <summary>Campos da resposta de reserva que os testes usam.</summary>
+public record ReservaApi(int Id, string Titulo, byte[] Versao);
+
 /// <summary>
 /// Cada teste usa um dia futuro exclusivo, então os testes não interferem entre si
 /// mesmo rodando em paralelo e sem limpar o banco.

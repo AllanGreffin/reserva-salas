@@ -30,11 +30,12 @@ public class ReservasController(ReservaService service, ReservaConsultas consult
     }
 
     [HttpPut("{id:int}")]
-    public async Task<ReservaResponse> Editar(int id, ReservaRequest request, CancellationToken ct)
+    public async Task<ReservaResponse> Editar(int id, EdicaoReservaRequest request, CancellationToken ct)
     {
         var usuario = User.ObterUsuarioAtual();
         await service.EditarAsync(
-            id, request.SalaId!.Value, request.Titulo, request.Inicio!.Value, request.Fim!.Value, usuario, ct);
+            id, request.SalaId!.Value, request.Titulo, request.Inicio!.Value, request.Fim!.Value, request.Versao!,
+            usuario, ct);
 
         return await consultas.ObterAsync(id, usuario, ct);
     }

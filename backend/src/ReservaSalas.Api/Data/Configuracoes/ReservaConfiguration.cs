@@ -11,6 +11,10 @@ public class ReservaConfiguration : IEntityTypeConfiguration<Reserva>
         builder.Property(r => r.Titulo).HasMaxLength(Reserva.TamanhoMaximoTitulo);
         builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
 
+        // rowversion: o SQL Server muda o valor a cada UPDATE, e o EF inclui "AND Versao = @original"
+        // no WHERE. Nenhuma linha afetada = outra pessoa alterou antes (DbUpdateConcurrencyException).
+        builder.Property(r => r.Versao).IsRowVersion();
+
         builder.HasOne(r => r.Sala).WithMany().HasForeignKey(r => r.SalaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(r => r.Usuario).WithMany().HasForeignKey(r => r.UsuarioId).OnDelete(DeleteBehavior.Restrict);
 

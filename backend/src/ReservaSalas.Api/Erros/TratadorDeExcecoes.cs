@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Domain;
 
 namespace ReservaSalas.Api.Erros;
@@ -15,19 +16,28 @@ public class TratadorDeExcecoes(
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext http, Exception excecao, CancellationToken ct)
     {
-        var (status, titulo) = excecao switch
+        // Os dois 409 têm causas diferentes; o "codigo" permite ao cliente distingui-los.
+        var (status, titulo, codigo, detalhe) = excecao switch
         {
-            RegraNegocioException => (StatusCodes.Status422UnprocessableEntity, "Regra de negócio violada"),
-            ConflitoDeHorarioException => (StatusCodes.Status409Conflict, "Conflito de horário"),
-            AcessoNegadoException => (StatusCodes.Status403Forbidden, "Acesso negado"),
-            RecursoNaoEncontradoException => (StatusCodes.Status404NotFound, "Recurso não encontrado"),
-            _ => (StatusCodes.Status500InternalServerError, "Erro interno")
+            RegraNegocioException regra =>
+                (StatusCodes.Status422UnprocessableEntity, "Regra de negócio violada", regra.Codigo, excecao.Message),
+            ConflitoDeHorarioException =>
+                (StatusCodes.Status409Conflict, "Conflito de horário", "CONFLITO_DE_HORARIO", excecao.Message),
+            DbUpdateConcurrencyException =>
+                (StatusCodes.Status409Conflict, "Versão desatualizada", "VERSAO_DESATUALIZADA",
+                    "A reserva foi alterada por outra pessoa depois que você a abriu. Recarregue e tente novamente."),
+            AcessoNegadoException =>
+                (StatusCodes.Status403Forbidden, "Acesso negado", null, excecao.Message),
+            RecursoNaoEncontradoException =>
+                (StatusCodes.Status404NotFound, "Recurso não encontrado", null, excecao.Message),
+            _ =>
+                (StatusCodes.Status500InternalServerError, "Erro interno", null, excecao.Message)
         };
 
-        var problema = new ProblemDetails { Status = status, Title = titulo, Detail = excecao.Message };
+        var problema = new ProblemDetails { Status = status, Title = titulo, Detail = detalhe };
 
-        if (excecao is RegraNegocioException regra)
-            problema.Extensions["codigo"] = regra.Codigo;
+        if (codigo is not null)
+            problema.Extensions["codigo"] = codigo;
 
         if (status == StatusCodes.Status500InternalServerError)
         {
