@@ -66,6 +66,12 @@ public class Reserva
     }
 
     /// <summary>
+    /// Seção 4: editar e cancelar são permitidos ao responsável pela reserva ou a um administrador.
+    /// </summary>
+    public bool PodeSerAlteradaPor(int usuarioId, PerfilUsuario perfil) =>
+        perfil == PerfilUsuario.Administrador || UsuarioId == usuarioId;
+
+    /// <summary>
     /// RN03: reservas ativas da mesma sala cujo intervalo [Inicio, Fim) se sobrepõe a [inicio, fim).
     /// É a única definição da regra: traduzida para SQL pelo EF Core e compilada nos testes unitários.
     /// </summary>

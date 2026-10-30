@@ -119,6 +119,26 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Salas");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Capacidade = 4,
+                            Nome = "Sala Azul"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Capacidade = 8,
+                            Nome = "Sala Verde"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Capacidade = 30,
+                            Nome = "Auditório"
+                        });
                 });
 
             modelBuilder.Entity("ReservaSalas.Domain.Usuario", b =>
@@ -155,6 +175,32 @@ namespace ReservaSalas.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Usuarios");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Login = "ana",
+                            Nome = "Ana Souza",
+                            Perfil = "Comum",
+                            SenhaHash = "AQAAAAIAAYagAAAAEKMUfEqWOuU/5iOKb2xd/QzK/KQy5xKRsCSDuKcgVL1gnjjaIM7qCV9rzVVCmTyOBw=="
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Login = "bruno",
+                            Nome = "Bruno Lima",
+                            Perfil = "Comum",
+                            SenhaHash = "AQAAAAIAAYagAAAAEItBrlv/fcG7Y5yo/b28LYTklG0WS9W6/LQDKOIRKxxeGH5n5CSilz/u0mWxSBtj/Q=="
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Login = "admin",
+                            Nome = "Administrador",
+                            Perfil = "Administrador",
+                            SenhaHash = "AQAAAAIAAYagAAAAEAQgD+atyoJ8S7E5Fr70nMvomqhIEc6MGOgyUzKIxIny6Mty2Y/Ey7GmfsJ/q3md5w=="
+                        });
                 });
 
             modelBuilder.Entity("ReservaSalas.Domain.Reserva", b =>
