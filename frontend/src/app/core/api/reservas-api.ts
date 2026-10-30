@@ -23,6 +23,8 @@ export interface Reserva {
   /** Calculados pelo backend com as regras do domínio; só orientam a interface. */
   podeEditar: boolean;
   podeCancelar: boolean;
+  /** Token de concorrência (base64): reenviado na edição para detectar alterações simultâneas. */
+  versao: string;
 }
 
 export interface DadosReserva {
@@ -49,8 +51,9 @@ export class ReservasApi {
     return this.http.post<Reserva>('/api/reservas', dados);
   }
 
-  editar(id: number, dados: DadosReserva): Observable<Reserva> {
-    return this.http.put<Reserva>(`/api/reservas/${id}`, dados);
+  /** `versao` é a que o usuário viu ao abrir a reserva; se outra pessoa gravou antes, a API responde 409. */
+  editar(id: number, dados: DadosReserva, versao: string): Observable<Reserva> {
+    return this.http.put<Reserva>(`/api/reservas/${id}`, { ...dados, versao });
   }
 
   cancelar(id: number): Observable<Reserva> {

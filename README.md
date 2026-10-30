@@ -73,7 +73,7 @@ dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://local
 | `GET` | `/api/reservas` | Reservas, com `podeEditar` e `podeCancelar` para o usuário autenticado |
 | `GET` | `/api/reservas/{id}` | Uma reserva |
 | `POST` | `/api/reservas` | Cria (201 + `Location`) |
-| `PUT` | `/api/reservas/{id}` | Edita título, sala e horário |
+| `PUT` | `/api/reservas/{id}` | Edita título, sala e horário; exige a `versao` recebida na leitura (D1) |
 | `POST` | `/api/reservas/{id}/cancelamento` | Cancela |
 
 Datas devem ser enviadas em ISO 8601 **com fuso explícito** (`2030-01-15T13:00:00Z` ou `2030-01-15T10:00:00-03:00`).
@@ -190,7 +190,8 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 | Sem token, token inválido ou expirado | 401 |
 | Reserva de outro usuário (sem ser administrador) | 403 |
 | Reserva inexistente | 404 |
-| Conflito de horário (RN03) | 409 |
+| Conflito de horário (RN03) | 409, com `codigo: CONFLITO_DE_HORARIO` |
+| Reserva alterada por outra pessoa desde a leitura (D1) | 409, com `codigo: VERSAO_DESATUALIZADA` |
 | Regra de negócio (RN01, RN02, RN04, reserva encerrada, sala inexistente) | 422, com o campo `codigo` |
 | Tentativas de login demais | 429 |
 | Erro inesperado | 500, com mensagem genérica |
@@ -213,10 +214,22 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 |---|---|
 | Remover o lock da sala | T1 |
 | Remover a verificação de propriedade | T3 |
+| Não usar a versão enviada pelo cliente na edição | D1 |
 | Gravar reserva e histórico em dois `SaveChanges`, sem transação explícita | T2 (criação) **e T1** |
 | Dois `SaveChanges`, com a transação explícita | nenhum |
 
   A terceira linha mostra que a transação explícita tem **duas** funções: atomicidade (T2) e **manter o lock** até o commit. Sem uma transação, o `UPDLOCK` é liberado ao fim do próprio `SELECT`, e a exclusão mútua deixa de existir (T1).
+
+### Concorrência otimista na edição (D1)
+
+Sem controle, se duas pessoas editam a mesma reserva (por exemplo, o dono e um administrador), quem salva por último sobrescreve a outra em silêncio (*lost update*).
+
+- **`rowversion` do SQL Server** na coluna `Reservas.Versao`, mapeada com `IsRowVersion()`. O banco muda o valor a cada `UPDATE`, e o EF Core passa a gravar com `WHERE Id = @id AND Versao = @original`. Se nenhuma linha for afetada, alguém alterou antes, e o EF lança `DbUpdateConcurrencyException`, traduzida para 409. Um contador ou uma data de alteração manuais dependeriam de código lembrar de atualizá-los; a `rowversion` é garantida pelo banco.
+- **A versão viaja no corpo:** a resposta traz `versao` (base64), e o `PUT` a exige. No serviço, ela é marcada como valor original da entidade carregada (`Entry(...).OriginalValue`), então o `UPDATE` compara com a versão que **o cliente viu**, e não com a que acabou de ser lida. Isso também cobre uma alteração que aconteça entre a leitura e a gravação dentro da própria requisição.
+- **Por que não `ETag`/`If-Match`:** é o padrão HTTP para isso, mas a resposta padrão a um `If-Match` que não confere é 412, e o enunciado pede 409. O campo no corpo atende ao enunciado sem distorcer a semântica de um header.
+- **Dois 409, um `codigo` para cada:** `CONFLITO_DE_HORARIO` e `VERSAO_DESATUALIZADA`. Sem isso, quem perdesse a corrida da edição leria "horário ocupado", o que seria falso.
+- **Escopo:** só a edição exige a versão do cliente, como pede o enunciado. Cancelar algo que outra pessoa acabou de editar não perde dados, e editar algo cancelado já é barrado pela RN04.
+- **Verificado:** o teste de integração D1 (Ana e admin leem a mesma versão; o admin salva e recebe 200; a Ana salva e recebe 409, com o banco mantendo os valores do admin e um único histórico de edição) falha se o serviço deixar de usar a versão do cliente. No navegador, com o formulário da Ana aberto, o admin editou a reserva por fora: o salvamento da Ana recebeu 409, o formulário recarregou com os dados do admin, e o salvamento seguinte, já com a versão nova, passou.
 
 ### Execução com Docker (D4)
 
@@ -308,7 +321,7 @@ frontend/src/app/
 - **Reactive Forms (tipados), e não template-driven:** a regra "fim posterior ao início" envolve dois campos, então vira um validador do `FormGroup`. É uma função pura e testável; no template-driven, exigiria uma diretiva customizada espalhada pelo HTML. Signal Forms foram evitados por ainda serem experimentais.
 - **O mesmo componente cria e edita:** o modo vem da rota (`/reservas/nova` ou `/reservas/:id/editar`).
 - **Autenticação centralizada:** o `authInterceptor` anexa o token **só a requisições para `/api`**, para não vazá-lo se o app chamar outro domínio. Um 401 da API (fora o login) encerra a sessão e leva ao login com "Sua sessão expirou", guardando a página atual para voltar depois. O `authGuard` protege as rotas e também considera a expiração do token.
-- **Feedback por status:** 401, 403, 404, 409 e 429 têm mensagens próprias, voltadas à ação na tela (o 409 diz "Esse horário já está reservado nesta sala"). 400 e 422 mostram o texto da API, que explica a regra. 500 mostra o `traceId` para o suporte. Depois de um 409 ou 422, o formulário mantém os dados para o usuário ajustar.
+- **Feedback por status:** 401, 403, 404, 409 e 429 têm mensagens próprias, voltadas à ação na tela. Os dois tipos de 409 são distinguidos pelo `codigo`: horário ocupado ("Esse horário já está reservado nesta sala") ou versão desatualizada (o formulário avisa e recarrega os dados atuais para o usuário revisar). 400 e 422 mostram o texto da API, que explica a regra. 500 mostra o `traceId` para o suporte. Depois de um 409 ou 422, o formulário mantém os dados para o usuário ajustar.
 - **Ações conforme o perfil:** os botões seguem os `podeEditar` e `podeCancelar` da API, sem regra replicada no cliente. Como esses flags são um retrato do momento, a lista é recarregada depois de qualquer erro numa ação e quando a aba volta a ficar visível.
 - **Proteção contra open redirect:** o parâmetro `retorno` do login só aceita caminhos internos (`/...`, e não `//...`).
 - **Datas:** o `datetime-local` entrega a hora local, que é enviada em UTC (`toISOString()`). A exibição usa o `DatePipe` com locale pt-BR, no fuso do navegador.

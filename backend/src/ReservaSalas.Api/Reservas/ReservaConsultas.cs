@@ -45,5 +45,6 @@ public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
             r.Fim,
             r.Status,
             r.PodeSerEditadaPor(usuario.Id, usuario.Perfil, agora),
-            r.PodeSerCanceladaPor(usuario.Id, usuario.Perfil));
+            r.PodeSerCanceladaPor(usuario.Id, usuario.Perfil),
+            r.Versao);
 }

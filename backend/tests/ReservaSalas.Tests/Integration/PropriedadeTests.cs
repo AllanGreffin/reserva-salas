@@ -17,7 +17,8 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
         var ana = await ambiente.ClienteAsync("ana");
         var bruno = await ambiente.ClienteAsync("bruno");
 
-        var id = await CriarReservaAsync(ana, inicio, fim, ct);
+        var criada = await CriarReservaAsync(ana, inicio, fim, ct);
+        var id = criada.Id;
         var antes = await LerAsync(id, ct);
 
         var edicao = await bruno.PutAsJsonAsync($"/api/reservas/{id}", new
@@ -25,7 +26,8 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
             salaId = 2,
             titulo = "Alterada por outro usuário",
             inicio = inicio.AddHours(2),
-            fim = fim.AddHours(2)
+            fim = fim.AddHours(2),
+            versao = criada.Versao
         }, ct);
         var cancelamento = await bruno.PostAsync($"/api/reservas/{id}/cancelamento", null, ct);
 
@@ -42,7 +44,7 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
     {
         var ct = TestContext.Current.CancellationToken;
         var (inicio, fim) = Horarios.NovoDia();
-        var id = await CriarReservaAsync(await ambiente.ClienteAsync("ana"), inicio, fim, ct);
+        var id = (await CriarReservaAsync(await ambiente.ClienteAsync("ana"), inicio, fim, ct)).Id;
         var admin = await ambiente.ClienteAsync("admin");
 
         var cancelamento = await admin.PostAsync($"/api/reservas/{id}/cancelamento", null, ct);
@@ -51,13 +53,13 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
         Assert.Equal(StatusReserva.Cancelada, (await LerAsync(id, ct)).Status);
     }
 
-    private static async Task<int> CriarReservaAsync(
+    private static async Task<ReservaApi> CriarReservaAsync(
         HttpClient cliente, DateTimeOffset inicio, DateTimeOffset fim, CancellationToken ct)
     {
         var resposta = await cliente.PostAsJsonAsync(
             "/api/reservas", new { salaId = 1, titulo = "T3 reserva da Ana", inicio, fim }, ct);
         resposta.EnsureSuccessStatusCode();
-        return (await resposta.Content.ReadFromJsonAsync<ReservaCriada>(ct))!.Id;
+        return (await resposta.Content.ReadFromJsonAsync<ReservaApi>(ct))!;
     }
 
     private async Task<EstadoReserva> LerAsync(int id, CancellationToken ct)
@@ -71,6 +73,4 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
     private record EstadoReserva(
         int SalaId, int UsuarioId, string Titulo, DateTimeOffset Inicio, DateTimeOffset Fim, StatusReserva Status,
         int Historicos);
-
-    private record ReservaCriada(int Id);
 }

@@ -5,7 +5,7 @@ import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { DadosReserva, Reserva, ReservasApi, Sala } from '../../core/api/reservas-api';
 import { localParaUtc, utcParaLocal } from '../../core/datas';
-import { mensagemDeErro } from '../../core/erros/mensagem-de-erro';
+import { ehVersaoDesatualizada, mensagemDeErro } from '../../core/erros/mensagem-de-erro';
 import { Alerta } from '../../shared/alerta';
 import { fimDepoisDoInicio } from './fim-depois-do-inicio';
 
@@ -30,6 +30,8 @@ export class ReservaForm implements OnInit {
   protected readonly salvando = signal(false);
   protected readonly bloqueada = signal(false);
   protected readonly erro = signal<string | null>(null);
+  /** Versão da reserva quando foi carregada no formulário; enviada na edição (D1). */
+  private versao = '';
 
   protected readonly form = inject(NonNullableFormBuilder).group(
     {
@@ -68,7 +70,7 @@ export class ReservaForm implements OnInit {
     this.erro.set(null);
 
     const operacao: Observable<Reserva> = this.edicao()
-      ? this.api.editar(Number(this.id()), dados)
+      ? this.api.editar(Number(this.id()), dados, this.versao)
       : this.api.criar(dados);
 
     operacao.subscribe({
@@ -76,6 +78,10 @@ export class ReservaForm implements OnInit {
       error: (erro: unknown) => {
         this.salvando.set(false);
         this.erro.set(mensagemDeErro(erro));
+        // Outra pessoa alterou a reserva: recarrega os dados atuais (e a nova versão) para o usuário revisar.
+        if (ehVersaoDesatualizada(erro)) {
+          this.carregarReserva(Number(this.id()));
+        }
         // 403/404: não há o que corrigir no formulário; os demais (409, 422, 400) permitem ajustar e reenviar.
         if (erro instanceof HttpErrorResponse && (erro.status === 403 || erro.status === 404)) {
           this.bloqueada.set(true);
@@ -93,6 +99,7 @@ export class ReservaForm implements OnInit {
           inicio: utcParaLocal(reserva.inicio),
           fim: utcParaLocal(reserva.fim),
         });
+        this.versao = reserva.versao;
         this.bloqueada.set(!reserva.podeEditar);
       },
       error: (erro: unknown) => {

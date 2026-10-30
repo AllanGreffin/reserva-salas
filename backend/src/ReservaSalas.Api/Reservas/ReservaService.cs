@@ -43,14 +43,20 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
     }
 
     public async Task<Reserva> EditarAsync(
-        int reservaId, int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, UsuarioAtual usuario,
-        CancellationToken ct)
+        int reservaId, int salaId, string titulo, DateTimeOffset inicio, DateTimeOffset fim, byte[] versaoVista,
+        UsuarioAtual usuario, CancellationToken ct)
     {
         var agora = relogio.GetUtcNow();
 
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
         var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
+
+        // Concorrência otimista (D1): o UPDATE compara com a versão que o cliente viu, e não com a que
+        // acabou de ser lida. Se outra pessoa gravou antes, nenhuma linha é afetada e o EF lança
+        // DbUpdateConcurrencyException (409), sem sobrescrever a outra gravação.
+        db.Entry(reserva).Property(r => r.Versao).OriginalValue = versaoVista;
+
         var antes = Dados(reserva);
         reserva.Editar(salaId, titulo, inicio, fim, agora);
 

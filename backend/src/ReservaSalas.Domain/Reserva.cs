@@ -16,6 +16,12 @@ public class Reserva
     public DateTimeOffset Fim { get; private set; }
     public StatusReserva Status { get; private set; }
 
+    /// <summary>
+    /// Token de concorrência otimista (D1), gerado pelo banco a cada alteração. Quem edita informa a
+    /// versão que viu; se outra pessoa gravou antes, a versão mudou e a gravação é rejeitada.
+    /// </summary>
+    public byte[] Versao { get; private set; } = null!;
+
     private Reserva() { } // EF Core
 
     public static Reserva Criar(

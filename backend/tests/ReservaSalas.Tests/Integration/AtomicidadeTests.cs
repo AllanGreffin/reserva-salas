@@ -62,14 +62,16 @@ public class AtomicidadeTests(AmbienteDeTestes ambiente) : IAsyncLifetime
         var criacao = await cliente.PostAsJsonAsync(
             "/api/reservas", new { salaId = 1, titulo = "T2 original", inicio, fim }, ct);
         criacao.EnsureSuccessStatusCode();
-        var id = (await criacao.Content.ReadFromJsonAsync<ReservaCriada>(ct))!.Id;
+        var criada = (await criacao.Content.ReadFromJsonAsync<ReservaApi>(ct))!;
+        var id = criada.Id;
 
         var edicao = await cliente.PutAsJsonAsync($"/api/reservas/{id}", new
         {
             salaId = 2,
             titulo = $"{Marcador} edição",
             inicio = inicio.AddHours(1),
-            fim = fim.AddHours(1)
+            fim = fim.AddHours(1),
+            versao = criada.Versao
         }, ct);
 
         Assert.Equal(HttpStatusCode.InternalServerError, edicao.StatusCode);
@@ -82,6 +84,4 @@ public class AtomicidadeTests(AmbienteDeTestes ambiente) : IAsyncLifetime
         Assert.Equal(fim, reserva.Fim);
         Assert.Equal(1, await db.ReservasHistorico.CountAsync(h => h.ReservaId == id, ct)); // só a criação
     }
-
-    private record ReservaCriada(int Id);
 }
