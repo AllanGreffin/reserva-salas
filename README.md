@@ -61,6 +61,19 @@ dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://local
 
 Datas devem ser enviadas em ISO 8601 **com fuso explícito** (`2030-01-15T13:00:00Z` ou `2030-01-15T10:00:00-03:00`).
 
+### Frontend
+
+Com a API rodando em `http://localhost:5221`:
+
+```bash
+cd frontend
+npm install
+npm start          # http://localhost:4200
+npm test           # testes unitários (Vitest)
+```
+
+O `ng serve` repassa `/api` para a API (`frontend/proxy.conf.json`), então o navegador fala com uma única origem e a API não precisa liberar CORS.
+
 ## Como executar os testes
 
 ```bash
@@ -100,7 +113,7 @@ _A definir._
 ### Ambiente e versões
 
 - **.NET 10 (LTS):** o .NET 8 (LTS) e o .NET 9 (STS) encerram o suporte em 10/11/2026. O .NET 10 tem suporte até novembro de 2028, então é a única opção que continua atendendo ao requisito de "versão com suporte ativo" depois da entrega.
-- **Angular na versão estável atual**, criado via `npx @angular/cli@latest`, sem depender de CLI global.
+- **Angular 22** (a versão estável atual), criado via `npx @angular/cli@22`, sem depender de CLI global. Usa o padrão do CLI: componentes standalone, zoneless (sem `zone.js`), signals e Vitest.
 - **SQL Server 2022 em container:** garante que o ambiente do avaliador seja igual ao de desenvolvimento. Uma instância local continua possível, bastando trocar a connection string.
 - **xUnit:** padrão de fato no ecossistema .NET, com boa integração com `WebApplicationFactory` e com o ciclo de vida de containers do Testcontainers (`IAsyncLifetime`). NUnit ou MSTest atenderiam igualmente; a escolha é de ecossistema, não técnica.
 - **Monorepo** (`backend/`, `frontend/`, `docker-compose.yml` na raiz): uma única entrega, clonada uma vez e executada com um único compose.
@@ -245,9 +258,63 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 - **Datas sem fuso são rejeitadas na entrada (400).** Por padrão, o System.Text.Json aceita `"2030-01-15T10:00:00"` e assume o fuso do servidor, então a mesma requisição significaria instantes diferentes conforme a máquina. Um `JsonConverter<DateTimeOffset>` exige `Z` ou `±hh:mm`.
 - **"Agora" injetável:** a RN02 depende do horário atual, então ele vem de `TimeProvider` (substituído por `FakeTimeProvider` nos testes). O domínio recebe o instante como parâmetro e continua sem dependências.
 
+### Frontend
+
+```
+frontend/src/app/
+├── core/auth/        Sessao (token e usuário), authInterceptor, authGuard
+├── core/api/         ReservasApi: toda a comunicação HTTP fica aqui, fora dos componentes
+├── core/erros/       mensagemDeErro: Problem Details → texto para o usuário
+├── core/datas.ts     conversão entre datetime-local (hora local) e ISO UTC
+├── features/login/   Login
+├── features/reservas ReservasLista, ReservaForm (criação e edição), validador fimDepoisDoInicio
+└── shared/           Cabecalho, Alerta
+```
+
+- **Sem biblioteca de componentes:** são quatro telas simples, e o `<input type="datetime-local">` nativo resolve data e hora. Um CSS próprio evita dependências pesadas.
+- **Reactive Forms (tipados), e não template-driven:** a regra "fim posterior ao início" envolve dois campos, então vira um validador do `FormGroup`. É uma função pura e testável; no template-driven, exigiria uma diretiva customizada espalhada pelo HTML. Signal Forms foram evitados por ainda serem experimentais.
+- **O mesmo componente cria e edita:** o modo vem da rota (`/reservas/nova` ou `/reservas/:id/editar`).
+- **Autenticação centralizada:** o `authInterceptor` anexa o token **só a requisições para `/api`**, para não vazá-lo se o app chamar outro domínio. Um 401 da API (fora o login) encerra a sessão e leva ao login com "Sua sessão expirou", guardando a página atual para voltar depois. O `authGuard` protege as rotas e também considera a expiração do token.
+- **Feedback por status:** 401, 403, 404, 409 e 429 têm mensagens próprias, voltadas à ação na tela (o 409 diz "Esse horário já está reservado nesta sala"). 400 e 422 mostram o texto da API, que explica a regra. 500 mostra o `traceId` para o suporte. Depois de um 409 ou 422, o formulário mantém os dados para o usuário ajustar.
+- **Ações conforme o perfil:** os botões seguem os `podeEditar` e `podeCancelar` da API, sem regra replicada no cliente. Como esses flags são um retrato do momento, a lista é recarregada depois de qualquer erro numa ação e quando a aba volta a ficar visível.
+- **Proteção contra open redirect:** o parâmetro `retorno` do login só aceita caminhos internos (`/...`, e não `//...`).
+- **Datas:** o `datetime-local` entrega a hora local, que é enviada em UTC (`toISOString()`). A exibição usa o `DatePipe` com locale pt-BR, no fuso do navegador.
+- **Testes:** o enunciado não exige testes de frontend. Há testes unitários para o validador de datas e para o interceptor: anexa o token só à API, ignora token expirado, trata o 401 e não redireciona no 401 do próprio login.
+
+**Verificado no navegador**, com a API e o frontend rodando:
+
+- redirecionamento ao login sem sessão;
+- login inválido e válido;
+- validação do formulário sem requisição à API;
+- criação;
+- 409 com os dados preservados no formulário;
+- edição pela URL de uma reserva de outro usuário (aviso e "Salvar" desabilitado);
+- cancelamento com o flag desatualizado: um admin cancelou antes, a resposta foi 422 e a lista foi recarregada;
+- token adulterado: 401, sessão encerrada e retorno à página após o login;
+- edição com conversão de fuso (10h local ↔ 13:00Z);
+- `retorno=//exemplo-malicioso.com` ignorado.
+
 ### XSS e armazenamento do token
 
-_A definir._
+**Como a aplicação está protegida contra XSS:**
+
+1. **O Angular escapa toda interpolação** (`{{ }}`) e sanitiza bindings de propriedade. Um título como `<img src=x onerror=alert(1)>` é exibido como texto. Isso foi verificado: no DOM, a célula contém `&lt;img ...&gt;`, não há nenhum elemento `<img>` na página e nenhum script executou.
+2. **Nenhum `[innerHTML]`, `bypassSecurityTrust*` ou manipulação direta do DOM** no código: as proteções do Angular nunca são desligadas.
+3. **A API só devolve JSON**, nunca HTML montado com dados do usuário.
+4. **Content Security Policy:** deve ser aplicada pelo servidor que entrega o frontend em produção (`script-src 'self'`, sem scripts inline). _Ainda não configurada: entra com o servidor do frontend no docker-compose (D4)._
+
+**Onde o token fica e os riscos:** em **`sessionStorage`**.
+
+| Opção | Sobrevive ao F5 | Legível por um script injetado | Observação |
+|---|---|---|---|
+| `localStorage` | sim | sim | Persiste indefinidamente e é compartilhado entre abas |
+| **`sessionStorage`** (escolhida) | sim | sim | Apagado ao fechar a aba e isolado por aba |
+| Só em memória | não (novo login a cada F5) | não diretamente | Um XSS ainda faz requisições enquanto a página está aberta |
+| Cookie `HttpOnly` | sim | não | Exige autenticação por cookie no backend e proteção contra CSRF |
+
+- **Risco assumido:** como qualquer storage acessível por JavaScript, o `sessionStorage` pode ser lido por um script injetado. A defesa principal é **impedir o XSS** (acima), e o estrago de um token roubado é limitado pela **expiração de 1 hora**.
+- **Por que não cookie `HttpOnly`:** é o mais resistente a roubo de token, mas exigiria mudar a autenticação do backend para cookies, tratar CSRF e configurar `SameSite`. É desproporcional para o escopo e fica como melhoria.
+- **Por que não só em memória:** obrigaria um novo login a cada F5, e um XSS ativo ainda conseguiria agir enquanto a página estivesse aberta.
 
 ### Dependências adicionais
 
