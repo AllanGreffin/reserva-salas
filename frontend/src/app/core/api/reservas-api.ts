@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -35,12 +35,34 @@ export interface DadosReserva {
   fim: string;
 }
 
+/** Filtros da listagem (D3). O período [de, ate) traz as reservas que se sobrepõem a ele. */
+export interface FiltroReservas {
+  salaId?: number;
+  /** ISO 8601 em UTC. */
+  de?: string;
+  ate?: string;
+  pagina?: number;
+  tamanhoPagina?: number;
+}
+
+export interface Pagina<T> {
+  itens: T[];
+  pagina: number;
+  tamanhoPagina: number;
+  totalItens: number;
+  totalPaginas: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ReservasApi {
   private readonly http = inject(HttpClient);
 
-  listar(): Observable<Reserva[]> {
-    return this.http.get<Reserva[]>('/api/reservas');
+  listar(filtro: FiltroReservas = {}): Observable<Pagina<Reserva>> {
+    let params = new HttpParams();
+    for (const [chave, valor] of Object.entries(filtro)) {
+      if (valor !== undefined) params = params.set(chave, valor);
+    }
+    return this.http.get<Pagina<Reserva>>('/api/reservas', { params });
   }
 
   obter(id: number): Observable<Reserva> {

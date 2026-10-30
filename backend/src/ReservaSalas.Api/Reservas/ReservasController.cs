@@ -11,8 +11,8 @@ namespace ReservaSalas.Api.Reservas;
 public class ReservasController(ReservaService service, ReservaConsultas consultas) : ControllerBase
 {
     [HttpGet]
-    public Task<IReadOnlyList<ReservaResponse>> Listar(CancellationToken ct) =>
-        consultas.ListarAsync(User.ObterUsuarioAtual(), ct);
+    public Task<PaginaResponse<ReservaResponse>> Listar([FromQuery] FiltroReservas filtro, CancellationToken ct) =>
+        consultas.ListarAsync(filtro, User.ObterUsuarioAtual(), ct);
 
     [HttpGet("{id:int}")]
     public Task<ReservaResponse> Obter(int id, CancellationToken ct) =>

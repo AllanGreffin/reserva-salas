@@ -62,6 +62,9 @@ namespace ReservaSalas.Api.Data.Migrations
 
                     b.HasIndex("UsuarioId");
 
+                    b.HasIndex("Inicio", "Id")
+                        .HasDatabaseName("IX_Reservas_Inicio_Id");
+
                     b.HasIndex("SalaId", "Fim")
                         .HasDatabaseName("IX_Reservas_SalaId_Fim_Ativas")
                         .HasFilter("[Status] = 'Ativa'");

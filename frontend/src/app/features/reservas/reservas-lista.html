@@ -4,64 +4,128 @@
     <a routerLink="/reservas/nova" class="botao">Nova reserva</a>
   </div>
 
+  <form class="filtros" [formGroup]="filtros" (ngSubmit)="filtrar()">
+    <label>
+      Sala
+      <select formControlName="sala">
+        <option value="">Todas as salas</option>
+        @for (sala of salas(); track sala.id) {
+          <option [value]="sala.id">{{ sala.nome }}</option>
+        }
+      </select>
+    </label>
+    <label>
+      De
+      <input formControlName="de" type="date" />
+    </label>
+    <label>
+      Até
+      <input formControlName="ate" type="date" />
+    </label>
+    <div class="acoes-filtro">
+      <button type="submit" [disabled]="filtros.invalid">Filtrar</button>
+      @if (filtrando()) {
+        <button type="button" class="secundario" (click)="limparFiltros()">Limpar</button>
+      }
+    </div>
+  </form>
+  @if (filtros.hasError('periodoInvertido')) {
+    <span class="erro-campo">A data final deve ser igual ou posterior à inicial.</span>
+  }
+
   @if (erro(); as mensagem) {
     <app-alerta [mensagem]="mensagem" />
   }
 
-  @if (carregando() && reservas().length === 0) {
-    <p>Carregando…</p>
-  } @else if (reservas().length === 0) {
-    <p>Nenhuma reserva cadastrada.</p>
-  } @else {
-    <div class="tabela-rolavel">
-      <table>
-        <thead>
-          <tr>
-            <th>Sala</th>
-            <th>Título</th>
-            <th>Responsável</th>
-            <th>Início</th>
-            <th>Fim</th>
-            <th>Status</th>
-            <th><span class="sr-only">Ações</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (reserva of reservas(); track reserva.id) {
-            <tr [class.cancelada]="reserva.status === 'Cancelada'">
-              <td>{{ reserva.sala.nome }}</td>
-              <td>{{ reserva.titulo }}</td>
-              <td>{{ reserva.responsavel.nome }}</td>
-              <td>{{ reserva.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
-              <td>{{ reserva.fim | date: 'dd/MM/yyyy HH:mm' }}</td>
-              <td>
-                <span class="selo" [class.ativa]="reserva.status === 'Ativa'">{{
-                  reserva.status
-                }}</span>
-              </td>
-              <td>
-                <div class="acoes">
-                  @if (reserva.podeEditar) {
-                    <a [routerLink]="['/reservas', reserva.id, 'editar']" class="botao secundario"
-                      >Editar</a
-                    >
-                  }
-                  @if (reserva.podeCancelar) {
-                    <button
-                      type="button"
-                      class="perigo"
-                      [disabled]="cancelando() === reserva.id"
-                      (click)="cancelar(reserva)"
-                    >
-                      Cancelar
-                    </button>
-                  }
-                </div>
-              </td>
+  @if (resultado(); as pagina) {
+    @if (pagina.itens.length === 0) {
+      <p>
+        {{
+          pagina.totalItens > 0
+            ? 'Não há reservas nesta página.'
+            : filtrando()
+              ? 'Nenhuma reserva encontrada para esses filtros.'
+              : 'Nenhuma reserva cadastrada.'
+        }}
+      </p>
+    } @else {
+      <div class="tabela-rolavel">
+        <table>
+          <thead>
+            <tr>
+              <th>Sala</th>
+              <th>Título</th>
+              <th>Responsável</th>
+              <th>Início</th>
+              <th>Fim</th>
+              <th>Status</th>
+              <th><span class="sr-only">Ações</span></th>
             </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            @for (reserva of pagina.itens; track reserva.id) {
+              <tr [class.cancelada]="reserva.status === 'Cancelada'">
+                <td>{{ reserva.sala.nome }}</td>
+                <td>{{ reserva.titulo }}</td>
+                <td>{{ reserva.responsavel.nome }}</td>
+                <td>{{ reserva.inicio | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>{{ reserva.fim | date: 'dd/MM/yyyy HH:mm' }}</td>
+                <td>
+                  <span class="selo" [class.ativa]="reserva.status === 'Ativa'">{{
+                    reserva.status
+                  }}</span>
+                </td>
+                <td>
+                  <div class="acoes">
+                    @if (reserva.podeEditar) {
+                      <a [routerLink]="['/reservas', reserva.id, 'editar']" class="botao secundario"
+                        >Editar</a
+                      >
+                    }
+                    @if (reserva.podeCancelar) {
+                      <button
+                        type="button"
+                        class="perigo"
+                        [disabled]="cancelando() === reserva.id"
+                        (click)="cancelar(reserva)"
+                      >
+                        Cancelar
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (pagina.totalPaginas > 1 || paginaAtual() > 1) {
+      <nav class="paginacao" aria-label="Paginação">
+        <button
+          type="button"
+          class="secundario"
+          [disabled]="paginaAtual() <= 1 || carregando()"
+          (click)="irParaPagina(paginaAtual() - 1)"
+        >
+          Anterior
+        </button>
+        <span
+          >Página {{ paginaAtual() }} de {{ pagina.totalPaginas || 1 }} ·
+          {{ pagina.totalItens }} reservas</span
+        >
+        <button
+          type="button"
+          class="secundario"
+          [disabled]="paginaAtual() >= pagina.totalPaginas || carregando()"
+          (click)="irParaPagina(paginaAtual() + 1)"
+        >
+          Próxima
+        </button>
+      </nav>
+    }
+  } @else if (carregando()) {
+    <p>Carregando…</p>
   }
 </section>

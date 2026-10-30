@@ -70,7 +70,7 @@ dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://local
 | `POST` | `/api/auth/login` | Login (anônimo). Devolve o token, a expiração e o usuário. |
 | `GET` | `/api/auth/eu` | Usuário do token |
 | `GET` | `/api/salas` | Salas |
-| `GET` | `/api/reservas` | Reservas, com `podeEditar` e `podeCancelar` para o usuário autenticado |
+| `GET` | `/api/reservas?salaId=&de=&ate=&pagina=&tamanhoPagina=` | Reservas paginadas (D3), com `podeEditar` e `podeCancelar` para o usuário autenticado. Todos os filtros são opcionais; `de`/`ate` em ISO 8601 com fuso |
 | `GET` | `/api/reservas/{id}` | Uma reserva |
 | `POST` | `/api/reservas` | Cria (201 + `Location`) |
 | `PUT` | `/api/reservas/{id}` | Edita título, sala e horário; exige a `versao` recebida na leitura (D1) |
@@ -208,6 +208,7 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
   - **T1:** 20 requisições simultâneas e sobrepostas, divididas entre **duas instâncias independentes da API** que compartilham o banco, como duas réplicas atrás de um balanceador. Exatamente uma recebe 201, as outras 19 recebem 409, e o banco tem uma única reserva ativa no intervalo. Um lock em memória passaria com uma instância só e falharia aqui.
   - **T2:** a falha é forçada **dentro do SQL Server**, por uma CHECK constraint temporária que rejeita o histórico de títulos com um marcador. Quando ela dispara, a reserva já foi inserida na transação, então a ausência da reserva prova o rollback. Cobre a criação e a edição. Um trigger foi descartado: o SQL Server proíbe triggers em tabelas gravadas com `OUTPUT` sem `INTO`, que é como o EF Core lê os Ids gerados, e o trigger quebrava os inserts dos outros testes. Um interceptor do EF, por sua vez, poderia abortar o lote antes de qualquer insert chegar ao banco, e o teste passaria sem provar nada.
   - **T3:** um usuário Comum recebe 403 ao editar e ao cancelar a reserva de outro, e o estado no banco (incluindo a quantidade de registros de histórico) é idêntico antes e depois. Um teste de controle confirma que o administrador consegue cancelar.
+  - **D3** (`ListagemTests`): filtro por sala; período por sobreposição, incluindo a borda semiaberta (uma reserva que termina exatamente no `de` não entra); paginação com totais, ordem e nenhuma reserva repetida ou perdida entre páginas; 400 para `tamanhoPagina` acima de 100, `pagina` 0, data sem fuso e período invertido. Cada teste cria as próprias reservas num dia exclusivo e filtra por ele.
 - **Os testes pegam as falhas que deveriam pegar.** O `ReservaService` foi sabotado de propósito, e cada sabotagem foi desfeita depois:
 
 | Sabotagem | Testes que falharam |
@@ -219,6 +220,22 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 | Dois `SaveChanges`, com a transação explícita | nenhum |
 
   A terceira linha mostra que a transação explícita tem **duas** funções: atomicidade (T2) e **manter o lock** até o commit. Sem uma transação, o `UPDLOCK` é liberado ao fim do próprio `SELECT`, e a exclusão mútua deixa de existir (T1).
+
+### Filtro e paginação (D3)
+
+- **Paginação por offset** (`pagina`/`tamanhoPagina`, com `Skip`/`Take` e um `COUNT`), com resposta em envelope: `{ itens, pagina, tamanhoPagina, totalItens, totalPaginas }`. Permite "página X de Y" e ir direto a qualquer página. A alternativa, *keyset* (cursor), é estável sob inserções e eficiente em qualquer profundidade, mas não tem total nem acesso direto. Ela faria sentido para rolagem infinita ou volumes grandes; para salas de reunião, o volume por consulta filtrada é pequeno.
+- **Ordenação determinística** (`Inicio` e, como desempate, `Id`). Ordenando só por `Inicio`, reservas no mesmo horário podem trocar de posição entre consultas e aparecer em duas páginas ou em nenhuma.
+- **O período traz as reservas que se sobrepõem a `[de, ate)`**, e não só as que começam nele: uma reunião das 9h às 11h aparece ao filtrar das 10h às 12h. É a mesma semântica de intervalo semiaberto da RN03. Os dois limites são opcionais.
+- **RN06 também na query string:** a exigência de fuso explícito foi extraída para `DatasComFuso` e é usada pelo conversor JSON e pelo filtro. Sem isso, `de=2026-11-01T10:00` seria aceito na query string e interpretado no fuso do servidor.
+- **Limites:** `tamanhoPagina` de 1 a 100 (padrão 20) e `pagina` a partir de 1; fora disso, 400. Sem limite, um cliente poderia pedir a tabela inteira de uma vez. Uma página além do fim devolve uma lista vazia com os totais corretos.
+- **Frontend:** filtros por sala e por dia (o dia final entra inteiro: "até 07/11" vira `[..., 08/11 00:00)` no fuso do navegador) e controles de página. **O estado fica na URL** (`/reservas?sala=2&de=2026-12-01&pagina=2`), então F5, o botão voltar e links compartilhados preservam os filtros. A consulta usa `switchMap`, que descarta respostas antigas se o usuário trocar de página ou de filtro rapidamente. Depois de cancelar uma reserva, a lista recarrega na mesma página.
+- **Verificado no navegador**, com 28 reservas:
+  - paginação (20 + 8);
+  - filtro por sala e dia (22 reservas em 2 páginas; o dia 01/12 em São Paulo foi enviado como `[03:00Z, 03:00Z do dia seguinte)`);
+  - F5 mantendo filtros, campos e página;
+  - o botão voltar;
+  - o período invertido bloqueado no formulário;
+  - "Limpar" restaurando a lista completa.
 
 ### Concorrência otimista na edição (D1)
 
@@ -251,6 +268,7 @@ navegador ──► web (nginx :8080) ──► /api ──► api (.NET :8080) 
 
 - **A disponibilidade não é um campo da sala.** Ela é calculada a partir das reservas ativas, como pede o enunciado.
 - **Índice da verificação de conflito (RN03):** `IX_Reservas_SalaId_Fim_Ativas` em `(SalaId, Fim) INCLUDE (Inicio) WHERE Status = 'Ativa'`. Um B-tree só faz seek por uma desigualdade. Fazer o seek por `Fim > @inicio` descarta todas as reservas que já terminaram, enquanto por `Inicio < @fim` o custo cresceria com todo o histórico da sala. `Inicio` é incluído para evitar key lookup, e as reservas canceladas ficam fora do índice. Com esse índice, o EF Core não cria um índice separado para a FK `SalaId`, porque ela já é o prefixo do composto. Como salas nunca são excluídas, isso não afeta a validação da FK.
+- **Índice da listagem (D3):** `IX_Reservas_Inicio_Id` em `(Inicio, Id)` atende o filtro de período (`Inicio < @ate`) e a ordenação (`ORDER BY Inicio, Id`) sem *sort*. A listagem inclui canceladas, então não pode usar o índice filtrado de conflito. `SalaId` ficou fora da chave: com poucas salas, o filtro por sala é pouco seletivo e é aplicado sobre o resultado deste índice. Com centenas de salas, um índice `(SalaId, Inicio)` passaria a compensar.
 - **`Usuarios.Login` único:** atende a consulta do login e garante que não haja logins duplicados.
 - **Enums gravados como texto** (`Status`, `Perfil`, `Acao`): ficam legíveis em consultas diretas, e reordenar o enum no C# não corrompe dados. O custo de espaço é irrelevante neste volume.
 - **Chaves `int IDENTITY`:** são sequenciais e adequadas para o índice clusterizado. GUIDs não trariam ganho, porque todas as reservas já são visíveis a todos os usuários.
@@ -322,6 +340,7 @@ frontend/src/app/
 - **O mesmo componente cria e edita:** o modo vem da rota (`/reservas/nova` ou `/reservas/:id/editar`).
 - **Autenticação centralizada:** o `authInterceptor` anexa o token **só a requisições para `/api`**, para não vazá-lo se o app chamar outro domínio. Um 401 da API (fora o login) encerra a sessão e leva ao login com "Sua sessão expirou", guardando a página atual para voltar depois. O `authGuard` protege as rotas e também considera a expiração do token.
 - **Feedback por status:** 401, 403, 404, 409 e 429 têm mensagens próprias, voltadas à ação na tela. Os dois tipos de 409 são distinguidos pelo `codigo`: horário ocupado ("Esse horário já está reservado nesta sala") ou versão desatualizada (o formulário avisa e recarrega os dados atuais para o usuário revisar). 400 e 422 mostram o texto da API, que explica a regra. 500 mostra o `traceId` para o suporte. Depois de um 409 ou 422, o formulário mantém os dados para o usuário ajustar.
+- **Filtros e paginação na URL** (D3): ver a seção "Filtro e paginação".
 - **Ações conforme o perfil:** os botões seguem os `podeEditar` e `podeCancelar` da API, sem regra replicada no cliente. Como esses flags são um retrato do momento, a lista é recarregada depois de qualquer erro numa ação e quando a aba volta a ficar visível.
 - **Proteção contra open redirect:** o parâmetro `retorno` do login só aceita caminhos internos (`/...`, e não `//...`).
 - **Datas:** o `datetime-local` entrega a hora local, que é enviada em UTC (`toISOString()`). A exibição usa o `DatePipe` com locale pt-BR, no fuso do navegador.

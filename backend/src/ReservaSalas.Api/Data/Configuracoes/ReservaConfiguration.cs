@@ -25,5 +25,11 @@ public class ReservaConfiguration : IEntityTypeConfiguration<Reserva>
             .IncludeProperties(r => r.Inicio)
             .HasFilter("[Status] = 'Ativa'")
             .HasDatabaseName("IX_Reservas_SalaId_Fim_Ativas");
+
+        // Listagem (D3): atende o filtro de período (Inicio < @ate) e a ordenação (Inicio, Id) sem sort.
+        // Inclui canceladas, então não pode ser o índice filtrado acima. Sem SalaId na chave: com poucas
+        // salas, o filtro por sala é pouco seletivo e é aplicado sobre o resultado deste índice.
+        builder.HasIndex(r => new { r.Inicio, r.Id })
+            .HasDatabaseName("IX_Reservas_Inicio_Id");
     }
 }
