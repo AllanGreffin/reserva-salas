@@ -30,7 +30,13 @@ O `dotnet-ef` é uma ferramenta local (`backend/dotnet-tools.json`), com a vers�
 
 ## Como executar os testes
 
-_A definir._
+```bash
+cd backend
+dotnet test                                  # todos
+dotnet test --filter-trait "Category=Unit"   # só unitários
+```
+
+O projeto usa xUnit v3 com a Microsoft.Testing.Platform, habilitada em `backend/global.json`. No SDK do .NET 10, o runner antigo (VSTest) não é mais suportado para o xUnit v3.
 
 ## Usuários do seed
 
@@ -69,6 +75,18 @@ backend/
 - **Sem repositórios genéricos, MediatR ou camadas Application/Infrastructure.** O `DbContext` já faz o papel de Unit of Work e repositório; uma abstração por cima esconderia justamente o comportamento de banco do qual a exclusão mútua depende. Com 3 entidades e 5 operações, essas camadas seriam desproporcionais. Como o domínio já está isolado, extrair uma camada Application mais tarde, se surgirem novos pontos de entrada (workers, filas) ou comportamentos transversais, é um refactor mecânico.
 - **Controllers, e não Minimal APIs.** As duas atenderiam. Controllers foram escolhidos pela convenção familiar a times .NET e por darem, com `[ApiController]`, a resposta 400 com Problem Details automática para modelos inválidos. Com poucos endpoints, a vantagem de concisão das Minimal APIs seria pequena.
 - **Um único projeto de testes**, com as camadas `Unit/` e `Integration/` separadas por pasta e categoria, conforme pedido no enunciado.
+
+### Regras de negócio: interpretações e decisões
+
+As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" como parâmetro.
+
+- **Violações de regra lançam `RegraNegocioException`** (com um código como `RN01`), traduzida para **422** pelo tratamento global de erros. O 400 fica para requisições malformadas, e o conflito de horário (RN03) responde **409**, como pede o enunciado. Um Result pattern foi descartado: com três operações, propagar resultados por todas as camadas custaria mais do que o ganho de explicitude.
+- **RN02 na edição só vale se o início for movido.** Uma reserva em andamento pode ter o título alterado ou o fim estendido. "Já passou" significa `inicio < agora`, então começar exatamente agora é permitido.
+- **Regra adicional: reservas que já terminaram não podem ser editadas.** O enunciado não trata do caso. Editar o passado não tem uso real e adulteraria o registro do que aconteceu.
+- **Cancelar uma reserva já cancelada é rejeitado.** A alternativa idempotente obrigaria a gerar um histórico duplicado ou a abrir uma exceção silenciosa à RN05. Cancelar uma reserva passada é permitido.
+- **RN03 tem uma única definição:** `Reserva.ConflitaCom` devolve uma `Expression<Func<Reserva, bool>>`. O EF Core traduz essa expression para SQL na verificação de conflito, e os testes unitários a compilam e executam em memória. Assim, a regra testada e a regra aplicada no banco não podem divergir.
+- **O domínio valida o título** (obrigatório, até 200 caracteres) mesmo com a validação da API. É defesa em profundidade: o domínio não depende de quem o chama.
+- **Testes:** xUnit v3 (a v2 está em modo de manutenção) e asserções do próprio xUnit. FluentAssertions foi evitado porque a licença passou a ser comercial a partir da v8.
 
 ### Modelo de dados e índices
 

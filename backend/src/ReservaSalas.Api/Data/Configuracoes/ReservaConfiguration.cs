@@ -8,7 +8,7 @@ public class ReservaConfiguration : IEntityTypeConfiguration<Reserva>
 {
     public void Configure(EntityTypeBuilder<Reserva> builder)
     {
-        builder.Property(r => r.Titulo).HasMaxLength(200);
+        builder.Property(r => r.Titulo).HasMaxLength(Reserva.TamanhoMaximoTitulo);
         builder.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
 
         builder.HasOne(r => r.Sala).WithMany().HasForeignKey(r => r.SalaId).OnDelete(DeleteBehavior.Restrict);
