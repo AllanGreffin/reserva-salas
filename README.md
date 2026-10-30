@@ -100,7 +100,41 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 
 ### Exclusão mútua
 
-_A definir._
+**O problema:** verificar conflito e depois inserir (*check-then-act*) não é seguro sob concorrência. Duas requisições simultâneas veem "sem conflito" e as duas inserem. Uma transação comum não impede isso, ainda mais com RCSI (*Read Committed Snapshot Isolation*), em que um `SELECT` lê a última versão commitada sem esperar transações em andamento. RCSI vem ligado no banco criado pelas migrations e é o padrão no Azure SQL. Como a API pode rodar em várias instâncias, a serialização precisa acontecer no banco.
+
+**A solução: lock pessimista na linha da sala.** Toda criação e edição segue o mesmo protocolo, numa transação explícita, dentro do `ReservaService` (o único ponto de escrita de reservas):
+
+```sql
+SELECT Id FROM Salas WITH (UPDLOCK, ROWLOCK) WHERE Id = @salaId  -- fila por sala
+-- verificação de conflito (Reserva.ConflitaCom)
+-- INSERT/UPDATE da reserva + INSERT do histórico
+COMMIT                                                            -- libera a sala
+```
+
+- O `UPDLOCK` é incompatível com outro `UPDLOCK`: requisições para a mesma sala esperam na primeira instrução, em qualquer instância da API, e salas diferentes não se bloqueiam. Quando a segunda requisição obtém o lock, a primeira já fez commit, então a verificação de conflito enxerga a reserva recém-gravada e devolve 409.
+- Hints de lock ignoram o versionamento do RCSI, então a solução é correta com ou sem RCSI.
+- O que fica bloqueado é uma linha identificada pela PK, independentemente de índices ou do plano de execução.
+- Na edição, o lock é na sala de **destino**, porque mover uma reserva para fora de uma sala só libera horário. O cancelamento não pega lock, pelo mesmo motivo.
+
+**Alternativas consideradas:**
+
+| Alternativa | Por que não |
+|---|---|
+| `SERIALIZABLE` / `UPDLOCK, HOLDLOCK` na consulta de conflito | Os *key-range locks* dependem do índice e do plano (um scan bloqueia a tabela inteira), e o `SERIALIZABLE` puro leva a deadlock entre duas inserções concorrentes. A correção fica difícil de provar. |
+| `sp_getapplock` por sala | Equivalente em granularidade e uma boa segunda opção, mas o lock é um nome sem relação com o dado. Bloquear a própria sala deixa a intenção mais explícita. |
+| Exclusion constraint | Seria o ideal (a regra garantida pelo próprio banco), mas existe no PostgreSQL e não no SQL Server. |
+| Tabela de slots com índice único | Impõe uma granularidade de tempo que o enunciado não pede e multiplica as linhas. |
+| Concorrência otimista na sala | Transforma contenção em falha: reservas sem conflito na mesma sala falhariam sem motivo real. |
+| Trigger de validação | Em READ COMMITTED, o trigger de uma transação não enxerga a linha não commitada da outra. |
+| Lock em memória / distribuído (Redis) | Em memória não funciona com várias instâncias. No Redis, o lock vive fora da transação do banco e pode expirar no meio dela. |
+
+**Custo conhecido:** escritas na mesma sala são serializadas mesmo quando os horários não se sobrepõem. Para salas de reunião, o volume de escritas por sala é baixo demais para isso importar.
+
+**Verificação:** com 20 requisições simultâneas e sobrepostas na mesma sala, o `ReservaService` criou 1 reserva e rejeitou 19 por conflito. Uma versão sem o lock, com a mesma transação, criou as 20. O SQL gerado para `ConflitaCom` contém o literal `[Status] = N'Ativa'`, condição para o SQL Server usar o índice filtrado. O teste de integração T1 cobre esse cenário de forma automatizada.
+
+### Histórico (RN05)
+
+Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usuário, data/hora em UTC) **na mesma transação** da operação. `Dados` guarda um JSON com o estado **antes** e **depois** da operação (`antes` é nulo na criação). Assim, os campos alterados podem ser derivados sem um formato de diff específico.
 
 ### Datas e fuso horário
 

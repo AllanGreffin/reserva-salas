@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Reservas;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,6 +8,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<ReservasDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("ReservaSalas")));
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ReservaService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
