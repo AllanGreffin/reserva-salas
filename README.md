@@ -14,7 +14,19 @@ Aplicação web de reserva de salas de reunião — ASP.NET Core, EF Core, SQL S
 
 ## Como executar
 
-_A definir._
+_Em construção._
+
+### Banco de dados
+
+A connection string fica em `ConnectionStrings:ReservaSalas`. Em desenvolvimento, o `appsettings.Development.json` aponta para uma instância local com autenticação do Windows, sem senha no arquivo. Para usar outra instância, sobrescreva com a variável de ambiente `ConnectionStrings__ReservaSalas`.
+
+```bash
+cd backend
+dotnet tool restore
+dotnet ef database update -p src/ReservaSalas.Api
+```
+
+O `dotnet-ef` é uma ferramenta local (`backend/dotnet-tools.json`), com a versão fixada no repositório.
 
 ## Como executar os testes
 
@@ -58,17 +70,35 @@ backend/
 - **Controllers, e não Minimal APIs.** As duas atenderiam. Controllers foram escolhidos pela convenção familiar a times .NET e por darem, com `[ApiController]`, a resposta 400 com Problem Details automática para modelos inválidos. Com poucos endpoints, a vantagem de concisão das Minimal APIs seria pequena.
 - **Um único projeto de testes**, com as camadas `Unit/` e `Integration/` separadas por pasta e categoria, conforme pedido no enunciado.
 
+### Modelo de dados e índices
+
+- **A disponibilidade não é um campo da sala.** Ela é calculada a partir das reservas ativas, como pede o enunciado.
+- **Índice da verificação de conflito (RN03):** `IX_Reservas_SalaId_Fim_Ativas` em `(SalaId, Fim) INCLUDE (Inicio) WHERE Status = 'Ativa'`. Um B-tree só faz seek por uma desigualdade. Fazer o seek por `Fim > @inicio` descarta todas as reservas que já terminaram, enquanto por `Inicio < @fim` o custo cresceria com todo o histórico da sala. `Inicio` é incluído para evitar key lookup, e as reservas canceladas ficam fora do índice. Com esse índice, o EF Core não cria um índice separado para a FK `SalaId`, porque ela já é o prefixo do composto. Como salas nunca são excluídas, isso não afeta a validação da FK.
+- **`Usuarios.Login` único:** atende a consulta do login e garante que não haja logins duplicados.
+- **Enums gravados como texto** (`Status`, `Perfil`, `Acao`): ficam legíveis em consultas diretas, e reordenar o enum no C# não corrompe dados. O custo de espaço é irrelevante neste volume.
+- **Chaves `int IDENTITY`:** são sequenciais e adequadas para o índice clusterizado. GUIDs não trariam ganho, porque todas as reservas já são visíveis a todos os usuários.
+- **Tamanhos explícitos** nas colunas de texto, em vez do `nvarchar(max)` padrão, exceto em `Dados` do histórico (JSON de tamanho variável).
+- **Nenhuma exclusão em cascata (`Restrict`):** reservas nunca são excluídas (o cancelamento é lógico, RN04), e cascatas a partir de `Usuarios` gerariam múltiplos caminhos até `ReservasHistorico`, o que o SQL Server rejeita.
+
 ### Exclusão mútua
 
 _A definir._
 
 ### Datas e fuso horário
 
-_A definir._
+- **`DateTimeOffset` normalizado para UTC, em colunas `datetimeoffset`.** O offset faz parte do valor em memória, no banco e no JSON, então ser inequívoco é uma garantia do tipo, não de configuração. Toda data recebida é convertida para UTC (`ToUniversalTime()`) antes de ser gravada.
+- **Por que não `DateTime` em UTC:** o SQL Server não guarda o `Kind`. O EF Core devolve `DateTimeKind.Unspecified`, e o JSON sai sem o sufixo `Z`, o que faz o navegador interpretar o valor como hora local. Isso só se resolve com um `ValueConverter` que alguém pode esquecer. Hora local sem fuso foi descartada por ser exatamente o caso que a RN06 proíbe.
+- **Comparações corretas:** em `datetimeoffset`, o SQL Server compara pelo instante UTC, então a verificação de conflito da RN03 continua correta mesmo com offsets diferentes.
+- **Tráfego:** ISO 8601 com offset. O frontend envia em UTC (`toISOString()`) e converte para o fuso do navegador só na exibição.
+- **"Agora" injetável:** a RN02 depende do horário atual, então ele vem de `TimeProvider` (substituído por `FakeTimeProvider` nos testes). O domínio recebe o instante como parâmetro e continua sem dependências.
 
 ### XSS e armazenamento do token
 
 _A definir._
+
+### Dependências adicionais
+
+- **`System.Security.Cryptography.Pkcs` referenciado diretamente:** o `Microsoft.Data.SqlClient` 6.1.7, trazido pelo EF Core, depende da versão 9.0.11, que tem vulnerabilidades conhecidas (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7). A referência direta força uma versão corrigida e pode ser removida quando o SqlClient atualizar.
 
 ### O que ficou de fora, melhorias e limitações conhecidas
 
