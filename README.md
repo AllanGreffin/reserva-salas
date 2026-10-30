@@ -6,15 +6,32 @@ Aplicação web de reserva de salas de reunião — ASP.NET Core, EF Core, SQL S
 
 ## Pré-requisitos
 
-| Ferramenta | Versão usada |
-|---|---|
-| .NET SDK | 10 (LTS) |
-| Node.js | 24 |
-| Docker | Necessário para os testes de integração (Testcontainers) e para o docker-compose |
+| Ferramenta | Versão usada | Para quê |
+|---|---|---|
+| Docker | 29 (com Docker Compose) | Executar a aplicação com um comando; testes de integração |
+| .NET SDK | 10 (LTS) | Desenvolvimento e testes do backend |
+| Node.js | 24 | Desenvolvimento do frontend |
+
+Para apenas **rodar** a aplicação, basta o Docker.
 
 ## Como executar
 
-_Em construção._
+### Com Docker (um comando)
+
+```bash
+cp .env.example .env     # preencha SQL_SENHA_SA e JWT_CHAVE (instruções no arquivo)
+docker compose up --build
+```
+
+A aplicação fica em **http://localhost:8080**, com os usuários do seed abaixo. A ordem de subida é automática: o SQL Server fica saudável, as migrations (schema + seed) são aplicadas e só então a API e o frontend sobem. A primeira execução baixa as imagens e compila tudo, o que leva alguns minutos.
+
+```bash
+docker compose down -v   # para tudo e apaga o volume do banco
+```
+
+### Sem Docker (desenvolvimento)
+
+Requer o .NET 10, o Node 24 e uma instância do SQL Server.
 
 ### Banco de dados
 
@@ -155,7 +172,7 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 - **JWT HS256 com expiração de 1 hora, sem refresh token.** HS256 basta porque a própria API emite e valida os tokens. Validação de emissor, audiência, tempo de vida, assinatura e algoritmo. O `ClockSkew` foi reduzido para 30 segundos: o padrão do ASP.NET aceita tokens até 5 minutos depois de expirados.
 - **Claims:** `sub` (id), `name` e `role` (perfil). O perfil vem do token, e não de uma releitura do banco: a API fica stateless, ao custo de uma mudança de perfil só valer após a expiração do token.
 - **Login:** `POST /api/auth/login`. Credenciais inválidas retornam 401 com uma mensagem genérica. Quando o login não existe, o código ainda verifica um hash falso, para que o tempo de resposta não revele quais logins existem (medido: ~80 ms para login existente e ~74 ms para inexistente; sem isso, o inexistente responderia em 1 ou 2 ms).
-- **Rate limiting no login:** 5 tentativas por minuto por IP (429 depois disso), configurável em `Login:TentativasPorMinuto`. Limitações conhecidas: o contador fica em memória, por instância, e atrás de um proxy seria preciso configurar `ForwardedHeaders` para obter o IP real. É uma proteção de melhor esforço contra força bruta, diferente da exclusão mútua, que precisa ser exata e por isso fica no banco.
+- **Rate limiting no login:** 5 tentativas por minuto por IP (429 depois disso), configurável em `Login:TentativasPorMinuto`. Atrás do nginx (docker-compose), a API lê o IP real do `X-Forwarded-For` (ver "Execução com Docker"). Limitação conhecida: o contador fica em memória, por instância. É uma proteção de melhor esforço contra força bruta, diferente da exclusão mútua, que precisa ser exata e por isso fica no banco.
 - **Seguro por padrão:** uma *fallback policy* exige autenticação em todos os endpoints. Só o login (e o OpenAPI em desenvolvimento) é anônimo.
 - **Propriedade (403):** `Reserva.PodeSerAlteradaPor` (dono ou administrador) fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
 - **O responsável é sempre o usuário do token:** os DTOs de entrada não têm campo de usuário, então o cliente não consegue forjar o dono da reserva.
@@ -200,6 +217,22 @@ As regras ficam na entidade `Reserva` (projeto Domain), que recebe o "agora" com
 | Dois `SaveChanges`, com a transação explícita | nenhum |
 
   A terceira linha mostra que a transação explícita tem **duas** funções: atomicidade (T2) e **manter o lock** até o commit. Sem uma transação, o `UPDLOCK` é liberado ao fim do próprio `SELECT`, e a exclusão mútua deixa de existir (T1).
+
+### Execução com Docker (D4)
+
+```
+navegador ──► web (nginx :8080) ──► /api ──► api (.NET :8080) ──► db (SQL Server)
+                                                 ▲
+                         migrations (aplica e termina)
+```
+
+- **Só o frontend é exposto** (`localhost:8080`). API e banco ficam na rede interna do compose, inacessíveis de fora. O nginx serve o Angular (com fallback de SPA) e repassa `/api` à API, então o navegador fala com uma única origem e não há CORS.
+- **Imagens multi-stage e sem root:** a imagem final da API tem só o runtime do ASP.NET (sem SDK nem código-fonte) e roda com o usuário `app` das imagens do .NET. O frontend usa o `nginx-unprivileged`.
+- **Migrations num serviço próprio** (EF Core *migration bundle*), que roda depois que o banco fica saudável e antes da API (`service_completed_successfully`). Aplicar migrations na inicialização da API exigiria dar à aplicação permissão de DDL só para isso, e uma migration com falha derrubaria a API.
+- **Segredos no `.env`** (não versionado), documentados no `.env.example`. O compose usa `${VAR:?mensagem}` e se recusa a subir se faltar a senha do banco ou a chave JWT.
+- **IP real atrás do proxy:** o nginx **sobrescreve** o `X-Forwarded-For` com o IP do cliente, e a API o lê (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`). Sem isso, a API veria o IP do nginx em todas as requisições, e o rate limit de login seria global: cinco tentativas de qualquer pessoa bloqueariam todo mundo. Esse modo confia no header vindo de qualquer origem, o que só é seguro porque a API não é acessível de fora da rede do compose. Verificado: forjar o header não burla o limite, e outro cliente continua conseguindo entrar enquanto o primeiro está bloqueado.
+- **Lockfile do npm gerado em Linux:** o `package-lock.json` gerado no Windows não incluía dependências opcionais de plataforma usadas pelo build no Linux, e o `npm ci` falhava no container. O lock foi regenerado num container Linux com a mesma versão do npm.
+- **Limitações:** a API conecta ao banco como `sa` (em produção, haveria um login com permissões mínimas), e o compose serve HTTP (em produção, o TLS terminaria no nginx ou num balanceador).
 
 ### Modelo de dados e índices
 
@@ -301,7 +334,7 @@ frontend/src/app/
 1. **O Angular escapa toda interpolação** (`{{ }}`) e sanitiza bindings de propriedade. Um título como `<img src=x onerror=alert(1)>` é exibido como texto. Isso foi verificado: no DOM, a célula contém `&lt;img ...&gt;`, não há nenhum elemento `<img>` na página e nenhum script executou.
 2. **Nenhum `[innerHTML]`, `bypassSecurityTrust*` ou manipulação direta do DOM** no código: as proteções do Angular nunca são desligadas.
 3. **A API só devolve JSON**, nunca HTML montado com dados do usuário.
-4. **Content Security Policy:** deve ser aplicada pelo servidor que entrega o frontend em produção (`script-src 'self'`, sem scripts inline). _Ainda não configurada: entra com o servidor do frontend no docker-compose (D4)._
+4. **Content Security Policy** no nginx que entrega o frontend (`frontend/nginx.conf`): `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'`, mais `X-Content-Type-Options`, `Referrer-Policy` e `X-Frame-Options`. É a segunda camada: mesmo que um script fosse injetado, ele não executaria nem conseguiria enviar dados a outro domínio. Isso foi verificado no navegador: um `<script>` inline injetado na página não executou, e uma imagem apontando para um domínio externo foi bloqueada. Com o app em uso normal, o console fica sem nenhuma violação. Para isso, o build de produção do Angular tem o `inlineCritical` desligado, porque essa otimização gera um `<link onload="...">`, que é um handler inline incompatível com uma CSP estrita.
 
 **Onde o token fica e os riscos:** em **`sessionStorage`**.
 
