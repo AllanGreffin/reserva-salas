@@ -229,4 +229,6 @@ _A definir._
 
 ### O que ficou de fora, melhorias e limitações conhecidas
 
-_A definir._
+_Em construção._
+
+- **Sem retry automático de falhas transitórias do banco (`EnableRetryOnFailure`).** A estratégia de retry do EF Core é incompatível com transações abertas manualmente, como as do `ReservaService`, a menos que cada operação seja envolvida em `Database.CreateExecutionStrategy().ExecuteAsync(...)`. Para um SQL Server local ou em container, falhas transitórias são raras. Num banco em nuvem (Azure SQL), esse seria o próximo passo.
