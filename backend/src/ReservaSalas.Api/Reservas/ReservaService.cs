@@ -4,7 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Autenticacao;
 using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
+using ReservaSalas.Domain.Enums;
+using ReservaSalas.Domain.Excecoes;
 
 namespace ReservaSalas.Api.Reservas;
 

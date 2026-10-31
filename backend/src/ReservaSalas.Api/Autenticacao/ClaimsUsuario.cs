@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Microsoft.IdentityModel.JsonWebTokens;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Enums;
 
 namespace ReservaSalas.Api.Autenticacao;
 

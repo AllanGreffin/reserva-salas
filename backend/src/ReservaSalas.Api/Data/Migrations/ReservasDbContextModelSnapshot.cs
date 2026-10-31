@@ -22,7 +22,7 @@ namespace ReservaSalas.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("ReservaSalas.Domain.Reserva", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Reserva", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -74,7 +74,7 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.ToTable("Reservas");
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.ReservaHistorico", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.ReservaHistorico", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -109,7 +109,7 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.ToTable("ReservasHistorico", (string)null);
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Sala", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Sala", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -150,7 +150,7 @@ namespace ReservaSalas.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Usuario", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Usuario", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -212,15 +212,15 @@ namespace ReservaSalas.Api.Data.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Reserva", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Reserva", b =>
                 {
-                    b.HasOne("ReservaSalas.Domain.Sala", "Sala")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Sala", "Sala")
                         .WithMany()
                         .HasForeignKey("SalaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ReservaSalas.Domain.Usuario", "Usuario")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Usuario", "Usuario")
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -231,15 +231,15 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.Navigation("Usuario");
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.ReservaHistorico", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.ReservaHistorico", b =>
                 {
-                    b.HasOne("ReservaSalas.Domain.Reserva", "Reserva")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Reserva", "Reserva")
                         .WithMany()
                         .HasForeignKey("ReservaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ReservaSalas.Domain.Usuario", null)
+                    b.HasOne("ReservaSalas.Domain.Entidades.Usuario", null)
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Tests.Integration;
 

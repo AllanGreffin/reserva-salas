@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
+using ReservaSalas.Domain.Enums;
+using ReservaSalas.Domain.Excecoes;
 
-namespace ReservaSalas.Domain;
+namespace ReservaSalas.Domain.Entidades;
 
 public class Reserva
 {
