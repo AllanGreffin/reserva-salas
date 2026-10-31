@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Excecoes;
 
 namespace ReservaSalas.Api.Erros;
 

@@ -1,4 +1,4 @@
-namespace ReservaSalas.Domain;
+namespace ReservaSalas.Domain.Excecoes;
 
 /// <summary>
 /// Violação de uma regra de negócio. A requisição é bem formada, mas a operação não é permitida.

@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Autenticacao;
 using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Api.Reservas;
 
@@ -53,12 +53,6 @@ public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
             ?? throw new RecursoNaoEncontradoException("Reserva não encontrada.");
         return ParaResponse(reserva, usuario, relogio.GetUtcNow());
     }
-
-    public async Task<IReadOnlyList<SalaResponse>> ListarSalasAsync(CancellationToken ct) =>
-        await db.Salas.AsNoTracking()
-            .OrderBy(s => s.Nome)
-            .Select(s => new SalaResponse(s.Id, s.Nome, s.Capacidade))
-            .ToListAsync(ct);
 
     private IQueryable<Reserva> Consulta() =>
         db.Reservas.AsNoTracking().Include(r => r.Sala).Include(r => r.Usuario);

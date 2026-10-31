@@ -1,4 +1,6 @@
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
+using ReservaSalas.Domain.Enums;
+using ReservaSalas.Domain.Excecoes;
 
 namespace ReservaSalas.Tests.Unit;
 

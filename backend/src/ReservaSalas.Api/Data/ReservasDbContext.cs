@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Api.Data;
 

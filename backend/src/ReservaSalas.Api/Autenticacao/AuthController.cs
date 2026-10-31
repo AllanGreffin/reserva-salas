@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Data;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
+using ReservaSalas.Domain.Enums;
 
 namespace ReservaSalas.Api.Autenticacao;
 

@@ -6,15 +6,23 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using ReservaSalas.Api.Data;
-using ReservaSalas.Tests.Integration;
 using Testcontainers.MsSql;
-
-[assembly: AssemblyFixture(typeof(AmbienteDeTestes))]
 
 namespace ReservaSalas.Tests.Integration;
 
 /// <summary>
-/// Um SQL Server real para toda a execução: um container (Testcontainers) ou, se a variável
+/// Coleção dos testes de integração. O xUnit só cria o <see cref="AmbienteDeTestes"/> quando um teste
+/// da coleção executa: os testes unitários rodam sem Docker. (Uma assembly fixture seria criada sempre,
+/// mesmo filtrando só os unitários.) Testes da mesma coleção rodam em sequência entre si.
+/// </summary>
+[CollectionDefinition(Nome)]
+public class ColecaoIntegracao : ICollectionFixture<AmbienteDeTestes>
+{
+    public const string Nome = "Integração";
+}
+
+/// <summary>
+/// Um SQL Server real para os testes de integração: um container (Testcontainers) ou, se a variável
 /// RESERVASALAS_TESTES_SQL estiver definida, a instância indicada por ela. As migrations (com o seed)
 /// são aplicadas uma vez. Duas instâncias independentes da API compartilham o banco, como duas réplicas
 /// atrás de um balanceador.

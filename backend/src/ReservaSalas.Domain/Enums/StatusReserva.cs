@@ -1,4 +1,4 @@
-namespace ReservaSalas.Domain;
+namespace ReservaSalas.Domain.Enums;
 
 public enum StatusReserva
 {

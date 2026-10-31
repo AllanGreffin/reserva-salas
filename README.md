@@ -103,7 +103,7 @@ O `ng serve` repassa `/api` para a API (`frontend/proxy.conf.json`), então o na
 ```bash
 cd backend
 dotnet test                                         # todos (precisa do Docker rodando)
-dotnet test --filter-trait "Category=Unit"          # só unitários
+dotnet test --filter-trait "Category=Unit"          # só unitários (não precisa de Docker)
 dotnet test --filter-trait "Category=Integration"   # só integração
 ```
 
@@ -178,16 +178,26 @@ COMMIT                                                            -- libera a sa
 backend/
 ├── ReservaSalas.slnx
 ├── src/
-│   ├── ReservaSalas.Domain/   entidades e regras de negócio (RN01–RN04), sem dependências
-│   └── ReservaSalas.Api/      controllers, serviços, EF Core, migrations, seed, autenticação, tratamento de erros
+│   ├── ReservaSalas.Domain/         regras de negócio (RN01–RN04), sem dependências
+│   │   ├── Entidades/               Reserva, ReservaHistorico, Sala, Usuario
+│   │   ├── Enums/                   StatusReserva, PerfilUsuario, AcaoReserva
+│   │   └── Excecoes/                RegraNegocioException, ConflitoDeHorarioException, AcessoNegadoException
+│   └── ReservaSalas.Api/            organizada por funcionalidade
+│       ├── Autenticacao/            login, JWT, usuário atual
+│       ├── Reservas/                controller, ReservaService (escrita), ReservaConsultas (leitura), DTOs, filtro
+│       ├── Salas/                   controller e consulta de salas
+│       ├── Erros/                   tratamento global de exceções
+│       ├── Json/                    datas com fuso obrigatório (RN06)
+│       └── Data/                    DbContext, configurações do EF, migrations e seed
 └── tests/
-    └── ReservaSalas.Tests/    Unit/ e Integration/
+    └── ReservaSalas.Tests/          Unit/ e Integration/
 ```
 
 - **Só o domínio é separado da API.** As regras de negócio ficam num projeto que não referencia EF Core nem ASP.NET Core, então é o compilador que garante que elas não dependem de infraestrutura. Isso também deixa os testes unitários das RN01–RN04 simples, sem mocks.
 - **O restante fica na API.** O serviço de reservas orquestra transação, controle de concorrência, regras de domínio e histórico. Ele precisa conhecer o SQL Server, porque a exclusão mútua depende de comportamento específico do banco.
 - **Sem repositórios genéricos, MediatR ou camadas Application/Infrastructure.** O `DbContext` já faz o papel de Unit of Work e repositório; uma abstração por cima esconderia justamente o comportamento de banco do qual a exclusão mútua depende. Com 3 entidades e 5 operações, essas camadas seriam desproporcionais. Como o domínio já está isolado, extrair uma camada Application mais tarde, se surgirem novos pontos de entrada (workers, filas) ou comportamentos transversais, é um refactor mecânico.
 - **Controllers, e não Minimal APIs.** As duas atenderiam. Controllers foram escolhidos pela convenção familiar a times .NET e por darem, com `[ApiController]`, a resposta 400 com Problem Details automática para modelos inválidos. Com poucos endpoints, a vantagem de concisão das Minimal APIs seria pequena.
+- **Pastas e namespaces:** o domínio é separado por tipo (`Entidades`, `Enums`, `Excecoes`). Com quatro entidades, essa divisão deixa o domínio legível de relance. A Api é separada por funcionalidade, porque cada funcionalidade reúne vários arquivos próprios (controller, serviço, DTOs). Os namespaces acompanham as pastas, como manda a convenção do .NET.
 - **Um único projeto de testes**, com as camadas `Unit/` e `Integration/` separadas por pasta e categoria, conforme pedido no enunciado.
 
 ### XSS e armazenamento do token
@@ -318,7 +328,7 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 ### Testes
 
 - **Unitários** (`Unit/`): RN01 a RN04, a tabela da seção 3.3 transcrita linha a linha, as permissões, as decisões adicionais e a validação de datas com fuso (`DatasComFuso`). Testam o domínio puro, com o "agora" fixo passado como parâmetro.
-- **Integração** (`Integration/`): a API real em memória (`WebApplicationFactory`), com login de verdade pelos usuários do seed, contra um SQL Server real. Um único container para toda a execução (assembly fixture do xUnit v3). Cada teste usa um dia futuro exclusivo, então os testes rodam em paralelo sem limpar o banco.
+- **Integração** (`Integration/`): a API real em memória (`WebApplicationFactory`), com login de verdade pelos usuários do seed, contra um SQL Server real. Um único container, compartilhado pelas classes de integração por uma **fixture de coleção** do xUnit. O xUnit só a cria quando algum teste de integração executa, então **os testes unitários rodam sem Docker**. Uma *assembly fixture* subiria o container sempre, mesmo filtrando só os unitários (verificado pelos eventos do Docker: rodar só os unitários não cria nenhum container). Os testes de integração rodam em sequência entre si, o que custa poucos segundos, porque o tempo é dominado por subir o container. Cada teste usa um dia futuro exclusivo, então os testes não dependem do que os outros gravaram.
   - **T1:** 20 requisições simultâneas e sobrepostas, divididas entre **duas instâncias independentes da API** que compartilham o banco, como duas réplicas atrás de um balanceador. Exatamente uma recebe 201, as outras 19 recebem 409, e o banco tem uma única reserva ativa no intervalo. Um lock em memória passaria com uma instância só e falharia aqui.
   - **T2:** a falha é forçada **dentro do SQL Server**, por uma CHECK constraint temporária que rejeita o histórico de títulos com um marcador. Quando ela dispara, a reserva já foi inserida na transação, então a ausência da reserva prova o rollback. Cobre a criação e a edição. Um trigger foi descartado: o SQL Server proíbe triggers em tabelas gravadas com `OUTPUT` sem `INTO`, que é como o EF Core lê os Ids gerados, e o trigger quebrava os inserts dos outros testes. Um interceptor do EF, por sua vez, poderia abortar o lote antes de qualquer insert chegar ao banco, e o teste passaria sem provar nada.
   - **T3:** um usuário Comum recebe 403 ao editar e ao cancelar a reserva de outro, e o estado no banco (incluindo a quantidade de registros de histórico) é idêntico antes e depois. Um teste de controle confirma que o administrador consegue cancelar.

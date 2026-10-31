@@ -1,4 +1,6 @@
-namespace ReservaSalas.Domain;
+using ReservaSalas.Domain.Enums;
+
+namespace ReservaSalas.Domain.Entidades;
 
 public class Usuario
 {

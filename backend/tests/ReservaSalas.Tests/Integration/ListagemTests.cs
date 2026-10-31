@@ -7,6 +7,7 @@ namespace ReservaSalas.Tests.Integration;
 /// D3: filtro por sala e período, com paginação no servidor. Cada teste cria as próprias reservas num dia
 /// exclusivo e filtra por esse dia, então não depende do que os outros testes gravaram.
 /// </summary>
+[Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
 public class ListagemTests(AmbienteDeTestes ambiente)
 {

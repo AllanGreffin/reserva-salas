@@ -1,11 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Enums;
 
 namespace ReservaSalas.Tests.Integration;
 
 /// <summary>T3: propriedade. Um usuário Comum não altera a reserva de outro, e ela permanece inalterada.</summary>
+[Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
 public class PropriedadeTests(AmbienteDeTestes ambiente)
 {

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Tests.Integration;
 
@@ -12,6 +12,7 @@ namespace ReservaSalas.Tests.Integration;
 /// rodam em paralelo não são afetados. (Um trigger não serve: o SQL Server proíbe triggers em tabelas
 /// gravadas com OUTPUT sem INTO, que é como o EF Core lê os Ids gerados.)
 /// </summary>
+[Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
 public class AtomicidadeTests(AmbienteDeTestes ambiente) : IAsyncLifetime
 {

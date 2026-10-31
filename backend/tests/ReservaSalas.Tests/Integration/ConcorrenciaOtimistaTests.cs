@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ReservaSalas.Tests.Integration;
 
 /// <summary>D1: concorrência otimista na edição.</summary>
+[Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
 public class ConcorrenciaOtimistaTests(AmbienteDeTestes ambiente)
 {

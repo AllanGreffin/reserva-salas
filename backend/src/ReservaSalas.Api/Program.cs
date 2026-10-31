@@ -12,7 +12,8 @@ using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
 using ReservaSalas.Api.Json;
 using ReservaSalas.Api.Reservas;
-using ReservaSalas.Domain;
+using ReservaSalas.Api.Salas;
+using ReservaSalas.Domain.Entidades;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +24,7 @@ builder.Services.AddDbContext<ReservasDbContext>(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ReservaService>();
 builder.Services.AddScoped<ReservaConsultas>();
+builder.Services.AddScoped<SalaConsultas>();
 
 // Erros: toda resposta de erro em Problem Details (RFC 9457)
 builder.Services.AddProblemDetails();

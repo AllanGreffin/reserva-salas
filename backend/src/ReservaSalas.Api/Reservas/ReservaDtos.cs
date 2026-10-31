@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
+using ReservaSalas.Domain.Enums;
 
 namespace ReservaSalas.Api.Reservas;
 
@@ -32,7 +33,5 @@ public record ReservaResponse(
     bool PodeEditar,
     bool PodeCancelar,
     byte[] Versao);
-
-public record SalaResponse(int Id, string Nome, int Capacidade);
 
 public record PaginaResponse<T>(IReadOnlyList<T> Itens, int Pagina, int TamanhoPagina, int TotalItens, int TotalPaginas);

@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using ReservaSalas.Domain;
+using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Api.Data.Configuracoes;
 
