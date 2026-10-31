@@ -6,6 +6,7 @@ using ReservaSalas.Domain.Entidades;
 namespace ReservaSalas.Tests.Integration;
 
 /// <summary>T1: reserva simultânea.</summary>
+[Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
 public class ReservaSimultaneaTests(AmbienteDeTestes ambiente)
 {
