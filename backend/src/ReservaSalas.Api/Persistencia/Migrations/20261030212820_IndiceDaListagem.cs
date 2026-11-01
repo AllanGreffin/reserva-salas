@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace ReservaSalas.Api.Data.Migrations
+namespace ReservaSalas.Api.Persistencia.Migrations
 {
     /// <inheritdoc />
     public partial class IndiceDaListagem : Migration

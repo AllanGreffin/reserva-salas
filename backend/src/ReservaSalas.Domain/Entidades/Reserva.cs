@@ -76,17 +76,17 @@ public class Reserva
     /// <summary>
     /// Seção 4: editar e cancelar são permitidos ao responsável pela reserva ou a um administrador.
     /// </summary>
-    public bool PodeSerAlteradaPor(int usuarioId, PerfilUsuario perfil) =>
+    public bool PertenceAoUsuarioOuEhAdministrador(int usuarioId, PerfilUsuario perfil) =>
         perfil == PerfilUsuario.Administrador || UsuarioId == usuarioId;
 
     // Indicam à interface quais ações oferecer, com os mesmos predicados que Editar e Cancelar aplicam.
     // São um retrato do momento da consulta: cada operação revalida tudo ao ser executada.
 
     public bool PodeSerEditadaPor(int usuarioId, PerfilUsuario perfil, DateTimeOffset agora) =>
-        PodeSerAlteradaPor(usuarioId, perfil) && !EstaCancelada && !EstaEncerrada(agora);
+        PertenceAoUsuarioOuEhAdministrador(usuarioId, perfil) && !EstaCancelada && !EstaEncerrada(agora);
 
     public bool PodeSerCanceladaPor(int usuarioId, PerfilUsuario perfil) =>
-        PodeSerAlteradaPor(usuarioId, perfil) && !EstaCancelada;
+        PertenceAoUsuarioOuEhAdministrador(usuarioId, perfil) && !EstaCancelada;
 
     private bool EstaCancelada => Status == StatusReserva.Cancelada;
 

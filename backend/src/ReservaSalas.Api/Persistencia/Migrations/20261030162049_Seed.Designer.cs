@@ -5,15 +5,15 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Persistencia;
 
 #nullable disable
 
-namespace ReservaSalas.Api.Data.Migrations
+namespace ReservaSalas.Api.Persistencia.Migrations
 {
     [DbContext(typeof(ReservasDbContext))]
-    [Migration("20261030212820_IndiceDaListagem")]
-    partial class IndiceDaListagem
+    [Migration("20261030162049_Seed")]
+    partial class Seed
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -55,18 +55,9 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.Property<int>("UsuarioId")
                         .HasColumnType("int");
 
-                    b.Property<byte[]>("Versao")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
                     b.HasKey("Id");
 
                     b.HasIndex("UsuarioId");
-
-                    b.HasIndex("Inicio", "Id")
-                        .HasDatabaseName("IX_Reservas_Inicio_Id");
 
                     b.HasIndex("SalaId", "Fim")
                         .HasDatabaseName("IX_Reservas_SalaId_Fim_Ativas")

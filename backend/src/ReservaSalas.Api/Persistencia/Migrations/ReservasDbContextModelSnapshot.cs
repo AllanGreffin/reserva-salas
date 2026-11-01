@@ -3,20 +3,17 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Persistencia;
 
 #nullable disable
 
-namespace ReservaSalas.Api.Data.Migrations
+namespace ReservaSalas.Api.Persistencia.Migrations
 {
     [DbContext(typeof(ReservasDbContext))]
-    [Migration("20261030144800_Inicial")]
-    partial class Inicial
+    partial class ReservasDbContextModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -25,7 +22,7 @@ namespace ReservaSalas.Api.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("ReservaSalas.Domain.Reserva", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Reserva", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -55,9 +52,18 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.Property<int>("UsuarioId")
                         .HasColumnType("int");
 
+                    b.Property<byte[]>("Versao")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UsuarioId");
+
+                    b.HasIndex("Inicio", "Id")
+                        .HasDatabaseName("IX_Reservas_Inicio_Id");
 
                     b.HasIndex("SalaId", "Fim")
                         .HasDatabaseName("IX_Reservas_SalaId_Fim_Ativas")
@@ -68,7 +74,7 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.ToTable("Reservas");
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.ReservaHistorico", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.ReservaHistorico", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -103,7 +109,7 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.ToTable("ReservasHistorico", (string)null);
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Sala", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Sala", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -122,9 +128,29 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Salas");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Capacidade = 4,
+                            Nome = "Sala Azul"
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Capacidade = 8,
+                            Nome = "Sala Verde"
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Capacidade = 30,
+                            Nome = "Auditório"
+                        });
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Usuario", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Usuario", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -158,17 +184,43 @@ namespace ReservaSalas.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Usuarios");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Login = "ana",
+                            Nome = "Ana Souza",
+                            Perfil = "Comum",
+                            SenhaHash = "AQAAAAIAAYagAAAAEKMUfEqWOuU/5iOKb2xd/QzK/KQy5xKRsCSDuKcgVL1gnjjaIM7qCV9rzVVCmTyOBw=="
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Login = "bruno",
+                            Nome = "Bruno Lima",
+                            Perfil = "Comum",
+                            SenhaHash = "AQAAAAIAAYagAAAAEItBrlv/fcG7Y5yo/b28LYTklG0WS9W6/LQDKOIRKxxeGH5n5CSilz/u0mWxSBtj/Q=="
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Login = "admin",
+                            Nome = "Administrador",
+                            Perfil = "Administrador",
+                            SenhaHash = "AQAAAAIAAYagAAAAEAQgD+atyoJ8S7E5Fr70nMvomqhIEc6MGOgyUzKIxIny6Mty2Y/Ey7GmfsJ/q3md5w=="
+                        });
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.Reserva", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.Reserva", b =>
                 {
-                    b.HasOne("ReservaSalas.Domain.Sala", "Sala")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Sala", "Sala")
                         .WithMany()
                         .HasForeignKey("SalaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ReservaSalas.Domain.Usuario", "Usuario")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Usuario", "Usuario")
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -179,15 +231,15 @@ namespace ReservaSalas.Api.Data.Migrations
                     b.Navigation("Usuario");
                 });
 
-            modelBuilder.Entity("ReservaSalas.Domain.ReservaHistorico", b =>
+            modelBuilder.Entity("ReservaSalas.Domain.Entidades.ReservaHistorico", b =>
                 {
-                    b.HasOne("ReservaSalas.Domain.Reserva", "Reserva")
+                    b.HasOne("ReservaSalas.Domain.Entidades.Reserva", "Reserva")
                         .WithMany()
                         .HasForeignKey("ReservaId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("ReservaSalas.Domain.Usuario", null)
+                    b.HasOne("ReservaSalas.Domain.Entidades.Usuario", null)
                         .WithMany()
                         .HasForeignKey("UsuarioId")
                         .OnDelete(DeleteBehavior.Restrict)

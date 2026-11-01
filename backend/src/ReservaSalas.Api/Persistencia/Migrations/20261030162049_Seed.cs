@@ -4,7 +4,7 @@
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
-namespace ReservaSalas.Api.Data.Migrations
+namespace ReservaSalas.Api.Persistencia.Migrations
 {
     /// <inheritdoc />
     public partial class Seed : Migration

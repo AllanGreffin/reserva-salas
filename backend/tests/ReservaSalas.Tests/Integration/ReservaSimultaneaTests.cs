@@ -16,14 +16,14 @@ public class ReservaSimultaneaTests(AmbienteDeTestes ambiente)
     [Fact]
     public async Task T1_requisicoes_concorrentes_em_duas_instancias_da_api_criam_exatamente_uma_reserva()
     {
-        var (inicio, fim) = Horarios.NovoDia();
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
 
         // As requisições são divididas entre duas instâncias da API que compartilham o banco:
         // um lock em memória do processo não impediria o conflito entre elas.
         HttpClient[] clientes =
         [
-            await ambiente.ClienteAsync("ana", ambiente.Instancia1),
-            await ambiente.ClienteAsync("bruno", ambiente.Instancia2)
+            await ambiente.ClienteAutenticadoAsync("ana", ambiente.Instancia1),
+            await ambiente.ClienteAutenticadoAsync("bruno", ambiente.Instancia2)
         ];
 
         var largada = new TaskCompletionSource();

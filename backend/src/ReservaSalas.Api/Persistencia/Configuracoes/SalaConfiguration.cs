@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ReservaSalas.Domain.Entidades;
 
-namespace ReservaSalas.Api.Data.Configuracoes;
+namespace ReservaSalas.Api.Persistencia.Configuracoes;
 
 public class SalaConfiguration : IEntityTypeConfiguration<Sala>
 {

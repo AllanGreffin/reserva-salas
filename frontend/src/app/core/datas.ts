@@ -17,7 +17,7 @@ export function inicioDoDiaUtc(dia: string): string {
  * "2030-01-15" → início do dia SEGUINTE, em UTC. Usado como limite exclusivo de um período, para que o
  * dia informado entre inteiro: "até 15/01" = [..., 16/01 00:00).
  */
-export function fimDoDiaUtc(dia: string): string {
+export function inicioDoDiaSeguinteUtc(dia: string): string {
   const data = new Date(`${dia}T00:00`);
   data.setDate(data.getDate() + 1);
   return data.toISOString();

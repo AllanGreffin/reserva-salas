@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
-using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Persistencia;
 using ReservaSalas.Domain.Entidades;
 using ReservaSalas.Domain.Enums;
 
@@ -20,7 +20,7 @@ public record LoginResponse(string Token, DateTimeOffset ExpiraEm, UsuarioRespon
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(ReservasDbContext db, TokenService tokens, IPasswordHasher<Usuario> hasher)
+public class AutenticacaoController(ReservasDbContext db, TokenService tokens, IPasswordHasher<Usuario> hasher)
     : ControllerBase
 {
     public const string PoliticaLogin = "login";

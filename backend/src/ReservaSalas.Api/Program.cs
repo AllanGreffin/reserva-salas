@@ -8,9 +8,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using ReservaSalas.Api.Autenticacao;
-using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Datas;
 using ReservaSalas.Api.Erros;
+using ReservaSalas.Api.Persistencia;
 using ReservaSalas.Api.Reservas;
 using ReservaSalas.Api.Salas;
 using ReservaSalas.Domain.Entidades;
@@ -51,7 +51,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             ValidIssuer = jwt.Emissor,
             ValidAudience = jwt.Audiencia,
-            IssuerSigningKey = TokenService.ChaveDe(jwt),
+            IssuerSigningKey = TokenService.CriarChaveDeAssinatura(jwt),
             ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
             NameClaimType = JwtRegisteredClaimNames.Name,
             RoleClaimType = ClaimsUsuario.Perfil,
@@ -68,7 +68,7 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddRateLimiter(opcoes =>
 {
     opcoes.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    opcoes.AddPolicy(AuthController.PoliticaLogin, contexto =>
+    opcoes.AddPolicy(AutenticacaoController.PoliticaLogin, contexto =>
         RateLimitPartition.GetFixedWindowLimiter(
             contexto.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
             _ => new FixedWindowRateLimiterOptions

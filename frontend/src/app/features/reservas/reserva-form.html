@@ -4,7 +4,7 @@
   @if (erro(); as mensagem) {
     <app-alerta [mensagem]="mensagem" />
   }
-  @if (bloqueada()) {
+  @if (edicaoBloqueada()) {
     <app-alerta
       tipo="aviso"
       mensagem="Você não pode editar esta reserva: ela é de outro usuário, foi cancelada ou já terminou."
@@ -59,7 +59,7 @@
 
     <div class="acoes-form">
       <a routerLink="/reservas" class="botao secundario">Voltar</a>
-      <button type="submit" [disabled]="salvando() || bloqueada()">
+      <button type="submit" [disabled]="salvando() || edicaoBloqueada()">
         {{ salvando() ? 'Salvando…' : 'Salvar' }}
       </button>
     </div>

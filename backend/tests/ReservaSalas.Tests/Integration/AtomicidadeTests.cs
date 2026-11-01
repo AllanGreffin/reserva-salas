@@ -40,9 +40,9 @@ public class AtomicidadeTests(AmbienteDeTestes ambiente) : IAsyncLifetime
     public async Task T2_falha_no_historico_desfaz_a_criacao_da_reserva()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
         var titulo = $"{Marcador} criação {Guid.NewGuid():N}";
-        var cliente = await ambiente.ClienteAsync("ana");
+        var cliente = await ambiente.ClienteAutenticadoAsync("ana");
 
         var resposta = await cliente.PostAsJsonAsync("/api/reservas", new { salaId = 1, titulo, inicio, fim }, ct);
 
@@ -57,8 +57,8 @@ public class AtomicidadeTests(AmbienteDeTestes ambiente) : IAsyncLifetime
     public async Task T2_falha_no_historico_desfaz_a_edicao_da_reserva()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var cliente = await ambiente.ClienteAsync("ana");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var cliente = await ambiente.ClienteAutenticadoAsync("ana");
 
         var criacao = await cliente.PostAsJsonAsync(
             "/api/reservas", new { salaId = 1, titulo = "T2 original", inicio, fim }, ct);

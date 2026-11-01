@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using ReservaSalas.Api.Data;
+using ReservaSalas.Api.Persistencia;
 using Testcontainers.MsSql;
 
 namespace ReservaSalas.Tests.Integration;
@@ -74,7 +74,7 @@ public class AmbienteDeTestes : IAsyncLifetime
         new(new DbContextOptionsBuilder<ReservasDbContext>().UseSqlServer(ConnectionString).Options);
 
     /// <summary>Cliente HTTP autenticado pelo login real da API com um usuário do seed.</summary>
-    public async Task<HttpClient> ClienteAsync(string login, ApiDeTestes? instancia = null)
+    public async Task<HttpClient> ClienteAutenticadoAsync(string login, ApiDeTestes? instancia = null)
     {
         var cliente = (instancia ?? Instancia1).CreateClient();
         var resposta = await cliente.PostAsJsonAsync("/api/auth/login", new { login, senha = Senhas[login] });
@@ -114,17 +114,24 @@ public class ApiDeTestes(string connectionString) : WebApplicationFactory<Progra
 public record ReservaApi(int Id, string Titulo, byte[] Versao);
 
 /// <summary>
-/// Cada teste usa um dia futuro exclusivo, então os testes não interferem entre si
-/// mesmo rodando em paralelo e sem limpar o banco.
+/// Cada teste usa um dia futuro exclusivo, então os testes não dependem do que os outros gravaram
+/// e o banco não precisa ser limpo entre eles.
 /// </summary>
 public static class Horarios
 {
     private static int _proximoDia;
 
-    public static (DateTimeOffset Inicio, DateTimeOffset Fim) NovoDia()
+    /// <summary>Meia-noite (UTC) de um dia futuro que nenhum outro teste usa.</summary>
+    public static DateTimeOffset NovoDiaExclusivo()
     {
         var dia = Interlocked.Increment(ref _proximoDia);
-        var inicio = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddDays(30 + dia).AddHours(10);
+        return new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero).AddDays(30 + dia);
+    }
+
+    /// <summary>Das 10h às 11h (UTC) de um dia futuro que nenhum outro teste usa.</summary>
+    public static (DateTimeOffset Inicio, DateTimeOffset Fim) UmaHoraEmNovoDiaExclusivo()
+    {
+        var inicio = NovoDiaExclusivo().AddHours(10);
         return (inicio, inicio.AddHours(1));
     }
 }

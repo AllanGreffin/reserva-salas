@@ -26,8 +26,8 @@ public class FiltroReservas : IValidatableObject
     [Range(1, TamanhoPaginaMaximo)]
     public int TamanhoPagina { get; init; } = 20;
 
-    public DateTimeOffset? InicioDoPeriodo => Ler(De);
-    public DateTimeOffset? FimDoPeriodo => Ler(Ate);
+    public DateTimeOffset? InicioDoPeriodo => LerDataComFuso(De);
+    public DateTimeOffset? FimDoPeriodo => LerDataComFuso(Ate);
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -41,6 +41,6 @@ public class FiltroReservas : IValidatableObject
             yield return new ValidationResult("O fim do período deve ser posterior ao início.", [nameof(Ate)]);
     }
 
-    private static DateTimeOffset? Ler(string? texto) =>
+    private static DateTimeOffset? LerDataComFuso(string? texto) =>
         DatasComFuso.TentarLer(texto, out var valor) ? valor : null;
 }

@@ -9,8 +9,9 @@ import {
 } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { catchError, map, merge, of, Subject, switchMap } from 'rxjs';
-import { FiltroReservas, Pagina, Reserva, ReservasApi, Sala } from '../../core/api/reservas-api';
-import { fimDoDiaUtc, inicioDoDiaUtc } from '../../core/datas';
+import { FiltroReservas, Pagina, Reserva, ReservasApi } from '../../core/api/reservas-api';
+import { Sala, SalasApi } from '../../core/api/salas-api';
+import { inicioDoDiaSeguinteUtc, inicioDoDiaUtc } from '../../core/datas';
 import { mensagemDeErro } from '../../core/erros/mensagem-de-erro';
 import { Alerta } from '../../shared/alerta';
 
@@ -38,6 +39,7 @@ export class ReservasLista {
   readonly pagina = input<string>();
 
   private readonly api = inject(ReservasApi);
+  private readonly salasApi = inject(SalasApi);
   private readonly router = inject(Router);
 
   protected readonly salas = signal<Sala[]>([]);
@@ -61,7 +63,7 @@ export class ReservasLista {
     return {
       salaId: sala ? Number(sala) : undefined,
       de: de ? inicioDoDiaUtc(de) : undefined,
-      ate: ate ? fimDoDiaUtc(ate) : undefined,
+      ate: ate ? inicioDoDiaSeguinteUtc(ate) : undefined,
       pagina: this.paginaAtual(),
     };
   });
@@ -97,7 +99,7 @@ export class ReservasLista {
         this.carregando.set(false);
       });
 
-    this.api.listarSalas().subscribe({
+    this.salasApi.listar().subscribe({
       next: (salas) => this.salas.set(salas),
       error: (erro: unknown) => this.erro.set(mensagemDeErro(erro)),
     });

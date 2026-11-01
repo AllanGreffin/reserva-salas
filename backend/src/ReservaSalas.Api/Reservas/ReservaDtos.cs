@@ -6,7 +6,7 @@ namespace ReservaSalas.Api.Reservas;
 
 // Sem campo de usuário: o responsável é sempre o usuário autenticado.
 // Tipos anuláveis + [Required] distinguem "campo ausente" de um valor padrão (0, data mínima).
-public record ReservaRequest(
+public record CriacaoReservaRequest(
     [Required] int? SalaId,
     [Required, MaxLength(Reserva.TamanhoMaximoTitulo)] string Titulo,
     [Required] DateTimeOffset? Inicio,
