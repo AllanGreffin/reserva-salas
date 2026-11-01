@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Domain.Entidades;
 
-namespace ReservaSalas.Api.Data;
+namespace ReservaSalas.Api.Persistencia;
 
 public class ReservasDbContext(DbContextOptions<ReservasDbContext> options) : DbContext(options)
 {

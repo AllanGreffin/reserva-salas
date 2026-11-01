@@ -2,8 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Autenticacao;
-using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
+using ReservaSalas.Api.Persistencia;
 using ReservaSalas.Domain.Entidades;
 using ReservaSalas.Domain.Enums;
 using ReservaSalas.Domain.Excecoes;
@@ -52,7 +52,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
 
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
-        var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
+        var reserva = await ObterReservaVerificandoPermissaoAsync(reservaId, usuario, ct);
 
         // Concorrência otimista (D1): o UPDATE compara com a versão que o cliente viu, e não com a que
         // acabou de ser lida. Se outra pessoa gravou antes, nenhuma linha é afetada e o EF lança
@@ -81,7 +81,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         // Cancelar só libera horário, então não precisa do lock da sala.
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
-        var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
+        var reserva = await ObterReservaVerificandoPermissaoAsync(reservaId, usuario, ct);
         var antes = ConverterReservaParaDadosReserva(reserva);
         reserva.Cancelar();
 
@@ -119,12 +119,13 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
     }
 
     // 404 antes de 403: todas as reservas são visíveis a todos, então a existência não é segredo.
-    private async Task<Reserva> ObterParaAlteracaoAsync(int reservaId, UsuarioAtual usuario, CancellationToken ct)
+    private async Task<Reserva> ObterReservaVerificandoPermissaoAsync(
+        int reservaId, UsuarioAtual usuario, CancellationToken ct)
     {
         var reserva = await db.Reservas.FirstOrDefaultAsync(r => r.Id == reservaId, ct)
             ?? throw new RecursoNaoEncontradoException("Reserva não encontrada.");
 
-        if (!reserva.PodeSerAlteradaPor(usuario.Id, usuario.Perfil))
+        if (!reserva.PertenceAoUsuarioOuEhAdministrador(usuario.Id, usuario.Perfil))
             throw new AcessoNegadoException();
 
         return reserva;

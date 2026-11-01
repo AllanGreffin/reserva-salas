@@ -67,7 +67,7 @@ public class ListagemTests(AmbienteDeTestes ambiente)
     [InlineData("de=2030-01-15T12:00:00Z&ate=2030-01-15T10:00:00Z")]      // fim antes do início
     public async Task Parametros_invalidos_retornam_400(string query)
     {
-        var cliente = await ambiente.ClienteAsync("ana");
+        var cliente = await ambiente.ClienteAutenticadoAsync("ana");
 
         var resposta = await cliente.GetAsync($"/api/reservas?{query}", TestContext.Current.CancellationToken);
 
@@ -81,8 +81,8 @@ public class ListagemTests(AmbienteDeTestes ambiente)
     private async Task<(HttpClient Cliente, DateTimeOffset Dia)> PrepararDiaAsync()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cliente = await ambiente.ClienteAsync("ana");
-        var dia = Horarios.NovoDia().Inicio.AddHours(-10);
+        var cliente = await ambiente.ClienteAutenticadoAsync("ana");
+        var dia = Horarios.NovoDiaExclusivo();
 
         // Criadas fora de ordem, para que a ordenação seja de fato testada.
         foreach (var hora in new[] { 12, 8, 10, 9, 11 })

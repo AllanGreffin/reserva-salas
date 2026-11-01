@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ReservaSalas.Api.Autenticacao;
-using ReservaSalas.Api.Data;
 using ReservaSalas.Api.Erros;
+using ReservaSalas.Api.Persistencia;
 using ReservaSalas.Domain.Entidades;
 
 namespace ReservaSalas.Api.Reservas;
@@ -49,12 +49,12 @@ public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
 
     public async Task<ReservaResponse> ObterAsync(int id, UsuarioAtual usuario, CancellationToken ct)
     {
-        var reserva = await Consulta().FirstOrDefaultAsync(r => r.Id == id, ct)
+        var reserva = await ReservasComSalaEUsuario().FirstOrDefaultAsync(r => r.Id == id, ct)
             ?? throw new RecursoNaoEncontradoException("Reserva não encontrada.");
         return MontarResponse(reserva, usuario, relogio.GetUtcNow());
     }
 
-    private IQueryable<Reserva> Consulta() =>
+    private IQueryable<Reserva> ReservasComSalaEUsuario() =>
         db.Reservas.AsNoTracking().Include(r => r.Sala).Include(r => r.Usuario);
 
     private static ReservaResponse MontarResponse(Reserva r, UsuarioAtual usuario, DateTimeOffset agora) =>

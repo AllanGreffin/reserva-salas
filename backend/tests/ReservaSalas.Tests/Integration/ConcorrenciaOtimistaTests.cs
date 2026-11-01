@@ -14,9 +14,9 @@ public class ConcorrenciaOtimistaTests(AmbienteDeTestes ambiente)
     public async Task D1_segunda_edicao_a_partir_da_mesma_versao_recebe_409_sem_sobrescrever_a_primeira()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var ana = await ambiente.ClienteAsync("ana");
-        var admin = await ambiente.ClienteAsync("admin");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var ana = await ambiente.ClienteAutenticadoAsync("ana");
+        var admin = await ambiente.ClienteAutenticadoAsync("admin");
 
         var criacao = await ana.PostAsJsonAsync(
             "/api/reservas", new { salaId = 1, titulo = "D1 original", inicio, fim }, ct);
@@ -52,8 +52,8 @@ public class ConcorrenciaOtimistaTests(AmbienteDeTestes ambiente)
     public async Task Conflito_de_horario_e_de_versao_sao_distinguiveis_pelo_codigo()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var ana = await ambiente.ClienteAsync("ana");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var ana = await ambiente.ClienteAutenticadoAsync("ana");
 
         (await ana.PostAsJsonAsync("/api/reservas", new { salaId = 2, titulo = "Ocupando", inicio, fim }, ct))
             .EnsureSuccessStatusCode();
@@ -68,8 +68,8 @@ public class ConcorrenciaOtimistaTests(AmbienteDeTestes ambiente)
     public async Task Edicao_sem_versao_e_rejeitada_com_400()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var ana = await ambiente.ClienteAsync("ana");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var ana = await ambiente.ClienteAutenticadoAsync("ana");
 
         var criacao = await ana.PostAsJsonAsync(
             "/api/reservas", new { salaId = 1, titulo = "Sem versão", inicio, fim }, ct);

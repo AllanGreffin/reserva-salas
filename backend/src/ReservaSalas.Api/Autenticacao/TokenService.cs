@@ -11,7 +11,7 @@ public class TokenService(IOptions<JwtOptions> opcoes, TimeProvider relogio)
 {
     private readonly JsonWebTokenHandler _handler = new();
 
-    public static SymmetricSecurityKey ChaveDe(JwtOptions opcoes) =>
+    public static SymmetricSecurityKey CriarChaveDeAssinatura(JwtOptions opcoes) =>
         new(Encoding.UTF8.GetBytes(opcoes.ChaveAssinatura));
 
     public (string Token, DateTimeOffset ExpiraEm) Gerar(Usuario usuario)
@@ -33,7 +33,7 @@ public class TokenService(IOptions<JwtOptions> opcoes, TimeProvider relogio)
                 new Claim(JwtRegisteredClaimNames.Name, usuario.Nome),
                 new Claim(ClaimsUsuario.Perfil, usuario.Perfil.ToString())
             ]),
-            SigningCredentials = new SigningCredentials(ChaveDe(jwt), SecurityAlgorithms.HmacSha256)
+            SigningCredentials = new SigningCredentials(CriarChaveDeAssinatura(jwt), SecurityAlgorithms.HmacSha256)
         });
 
         return (token, expiraEm);

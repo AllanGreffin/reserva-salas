@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ReservaSalas.Domain.Entidades;
 using ReservaSalas.Domain.Enums;
 
-namespace ReservaSalas.Api.Data.Configuracoes;
+namespace ReservaSalas.Api.Persistencia.Configuracoes;
 
 public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
 {

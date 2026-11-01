@@ -19,7 +19,7 @@ public class ReservasController(ReservaService service, ReservaConsultas consult
         consultas.ObterAsync(id, User.ObterUsuarioAtual(), ct);
 
     [HttpPost]
-    public async Task<ActionResult<ReservaResponse>> Criar(ReservaRequest request, CancellationToken ct)
+    public async Task<ActionResult<ReservaResponse>> Criar(CriacaoReservaRequest request, CancellationToken ct)
     {
         var usuario = User.ObterUsuarioAtual();
         var reserva = await service.CriarAsync(

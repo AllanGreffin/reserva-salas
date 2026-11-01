@@ -3,7 +3,8 @@ import { Component, computed, inject, input, OnInit, signal } from '@angular/cor
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
-import { DadosReserva, Reserva, ReservasApi, Sala } from '../../core/api/reservas-api';
+import { Reserva, ReservaFormulario, ReservasApi } from '../../core/api/reservas-api';
+import { Sala, SalasApi } from '../../core/api/salas-api';
 import { localParaUtc, utcParaLocal } from '../../core/datas';
 import { ehVersaoDesatualizada, mensagemDeErro } from '../../core/erros/mensagem-de-erro';
 import { Alerta } from '../../shared/alerta';
@@ -22,13 +23,14 @@ export class ReservaForm implements OnInit {
   readonly id = input<string>();
 
   private readonly api = inject(ReservasApi);
+  private readonly salasApi = inject(SalasApi);
   private readonly router = inject(Router);
 
   protected readonly tamanhoMaximoTitulo = TAMANHO_MAXIMO_TITULO;
   protected readonly edicao = computed(() => this.id() !== undefined);
   protected readonly salas = signal<Sala[]>([]);
   protected readonly salvando = signal(false);
-  protected readonly bloqueada = signal(false);
+  protected readonly edicaoBloqueada = signal(false);
   protected readonly erro = signal<string | null>(null);
   /** Versão da reserva quando foi carregada no formulário; enviada na edição (D1). */
   private versao = '';
@@ -44,7 +46,7 @@ export class ReservaForm implements OnInit {
   );
 
   ngOnInit(): void {
-    this.api.listarSalas().subscribe({
+    this.salasApi.listar().subscribe({
       next: (salas) => this.salas.set(salas),
       error: (erro: unknown) => this.erro.set(mensagemDeErro(erro)),
     });
@@ -59,7 +61,7 @@ export class ReservaForm implements OnInit {
     }
 
     const valor = this.form.getRawValue();
-    const dados: DadosReserva = {
+    const dados: ReservaFormulario = {
       salaId: valor.salaId!,
       titulo: valor.titulo.trim(),
       inicio: localParaUtc(valor.inicio),
@@ -84,7 +86,7 @@ export class ReservaForm implements OnInit {
         }
         // 403/404: não há o que corrigir no formulário; os demais (409, 422, 400) permitem ajustar e reenviar.
         if (erro instanceof HttpErrorResponse && (erro.status === 403 || erro.status === 404)) {
-          this.bloqueada.set(true);
+          this.edicaoBloqueada.set(true);
         }
       },
     });
@@ -100,11 +102,11 @@ export class ReservaForm implements OnInit {
           fim: utcParaLocal(reserva.fim),
         });
         this.versao = reserva.versao;
-        this.bloqueada.set(!reserva.podeEditar);
+        this.edicaoBloqueada.set(!reserva.podeEditar);
       },
       error: (erro: unknown) => {
         this.erro.set(mensagemDeErro(erro));
-        this.bloqueada.set(true);
+        this.edicaoBloqueada.set(true);
       },
     });
   }

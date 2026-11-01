@@ -8,15 +8,15 @@ namespace ReservaSalas.Tests.Integration;
 /// <summary>T3: propriedade. Um usuário Comum não altera a reserva de outro, e ela permanece inalterada.</summary>
 [Collection(ColecaoIntegracao.Nome)]
 [Trait("Category", "Integration")]
-public class PropriedadeTests(AmbienteDeTestes ambiente)
+public class PermissaoDoDonoTests(AmbienteDeTestes ambiente)
 {
     [Fact]
     public async Task T3_usuario_comum_recebe_403_ao_editar_ou_cancelar_reserva_de_outro_e_ela_permanece_inalterada()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var ana = await ambiente.ClienteAsync("ana");
-        var bruno = await ambiente.ClienteAsync("bruno");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var ana = await ambiente.ClienteAutenticadoAsync("ana");
+        var bruno = await ambiente.ClienteAutenticadoAsync("bruno");
 
         var criada = await CriarReservaAsync(ana, inicio, fim, ct);
         var id = criada.Id;
@@ -44,9 +44,9 @@ public class PropriedadeTests(AmbienteDeTestes ambiente)
     public async Task Administrador_pode_cancelar_reserva_de_outro_usuario()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (inicio, fim) = Horarios.NovoDia();
-        var id = (await CriarReservaAsync(await ambiente.ClienteAsync("ana"), inicio, fim, ct)).Id;
-        var admin = await ambiente.ClienteAsync("admin");
+        var (inicio, fim) = Horarios.UmaHoraEmNovoDiaExclusivo();
+        var id = (await CriarReservaAsync(await ambiente.ClienteAutenticadoAsync("ana"), inicio, fim, ct)).Id;
+        var admin = await ambiente.ClienteAutenticadoAsync("admin");
 
         var cancelamento = await admin.PostAsync($"/api/reservas/{id}/cancelamento", null, ct);
 

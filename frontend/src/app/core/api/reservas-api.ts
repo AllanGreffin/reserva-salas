@@ -7,10 +7,6 @@ export interface Resumo {
   nome: string;
 }
 
-export interface Sala extends Resumo {
-  capacidade: number;
-}
-
 export interface Reserva {
   id: number;
   titulo: string;
@@ -27,7 +23,8 @@ export interface Reserva {
   versao: string;
 }
 
-export interface DadosReserva {
+/** Dados preenchidos no formulário e enviados para criar ou editar uma reserva. */
+export interface ReservaFormulario {
   salaId: number;
   titulo: string;
   /** ISO 8601 em UTC (toISOString). */
@@ -69,20 +66,16 @@ export class ReservasApi {
     return this.http.get<Reserva>(`/api/reservas/${id}`);
   }
 
-  criar(dados: DadosReserva): Observable<Reserva> {
+  criar(dados: ReservaFormulario): Observable<Reserva> {
     return this.http.post<Reserva>('/api/reservas', dados);
   }
 
   /** `versao` é a que o usuário viu ao abrir a reserva; se outra pessoa gravou antes, a API responde 409. */
-  editar(id: number, dados: DadosReserva, versao: string): Observable<Reserva> {
+  editar(id: number, dados: ReservaFormulario, versao: string): Observable<Reserva> {
     return this.http.put<Reserva>(`/api/reservas/${id}`, { ...dados, versao });
   }
 
   cancelar(id: number): Observable<Reserva> {
     return this.http.post<Reserva>(`/api/reservas/${id}/cancelamento`, null);
-  }
-
-  listarSalas(): Observable<Sala[]> {
-    return this.http.get<Sala[]>('/api/salas');
   }
 }

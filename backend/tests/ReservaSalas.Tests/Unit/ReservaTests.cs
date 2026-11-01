@@ -135,7 +135,7 @@ public class ReservaTests
     [InlineData(UsuarioId + 1, PerfilUsuario.Administrador, true)] // administrador
     public void Somente_o_dono_ou_um_administrador_pode_alterar(int usuarioId, PerfilUsuario perfil, bool esperado)
     {
-        Assert.Equal(esperado, CriarReserva().PodeSerAlteradaPor(usuarioId, perfil));
+        Assert.Equal(esperado, CriarReserva().PertenceAoUsuarioOuEhAdministrador(usuarioId, perfil));
     }
 
     [Fact]

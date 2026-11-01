@@ -188,7 +188,7 @@ backend/
 │       ├── Salas/                   controller e consulta de salas
 │       ├── Erros/                   tratamento global de exceções
 │       ├── Datas/                   datas com fuso obrigatório na entrada, JSON e query string (RN06)
-│       └── Data/                    DbContext, configurações do EF, migrations e seed
+│       └── Persistencia/            DbContext, configurações do EF, migrations e seed
 └── tests/
     └── ReservaSalas.Tests/          Unit/ e Integration/
 ```
@@ -287,7 +287,7 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 - **Login:** `POST /api/auth/login`. Credenciais inválidas retornam 401 com uma mensagem genérica. Quando o login não existe, o código ainda verifica um hash falso, para que o tempo de resposta não revele quais logins existem (medido: ~80 ms para login existente e ~74 ms para inexistente; sem isso, o inexistente responderia em 1 ou 2 ms).
 - **Rate limiting no login:** 5 tentativas por minuto por IP (429 depois disso), configurável em `Login:TentativasPorMinuto`. Atrás do nginx (docker-compose), a API lê o IP real do `X-Forwarded-For` (ver "Execução com Docker"). Limitação conhecida: o contador fica em memória, por instância. É uma proteção de melhor esforço contra força bruta, diferente da exclusão mútua, que precisa ser exata e por isso fica no banco.
 - **Seguro por padrão:** uma *fallback policy* exige autenticação em todos os endpoints. Só o login (e o OpenAPI em desenvolvimento) é anônimo.
-- **Propriedade (403):** `Reserva.PodeSerAlteradaPor` (dono ou administrador) fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
+- **Propriedade (403):** `Reserva.PertenceAoUsuarioOuEhAdministrador` fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
 - **O responsável é sempre o usuário do token:** os DTOs de entrada não têm campo de usuário, então o cliente não consegue forjar o dono da reserva.
 
 ### Endpoints e tratamento de erros
@@ -352,7 +352,7 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 ```
 frontend/src/app/
 ├── core/auth/        Sessao (token e usuário), authInterceptor, authGuard
-├── core/api/         ReservasApi: toda a comunicação HTTP fica aqui, fora dos componentes
+├── core/api/         ReservasApi e SalasApi: toda a comunicação HTTP fica aqui, fora dos componentes
 ├── core/erros/       mensagemDeErro: Problem Details → texto para o usuário
 ├── core/datas.ts     conversão entre datetime-local (hora local) e ISO UTC
 ├── features/login/   Login
