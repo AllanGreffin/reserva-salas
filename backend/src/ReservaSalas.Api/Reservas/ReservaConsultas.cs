@@ -40,7 +40,7 @@ public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
 
         var agora = relogio.GetUtcNow();
         return new PaginaResponse<ReservaResponse>(
-            reservas.Select(r => ParaResponse(r, usuario, agora)).ToList(),
+            reservas.Select(r => MontarResponse(r, usuario, agora)).ToList(),
             filtro.Pagina,
             filtro.TamanhoPagina,
             totalItens,
@@ -51,13 +51,13 @@ public class ReservaConsultas(ReservasDbContext db, TimeProvider relogio)
     {
         var reserva = await Consulta().FirstOrDefaultAsync(r => r.Id == id, ct)
             ?? throw new RecursoNaoEncontradoException("Reserva não encontrada.");
-        return ParaResponse(reserva, usuario, relogio.GetUtcNow());
+        return MontarResponse(reserva, usuario, relogio.GetUtcNow());
     }
 
     private IQueryable<Reserva> Consulta() =>
         db.Reservas.AsNoTracking().Include(r => r.Sala).Include(r => r.Usuario);
 
-    private static ReservaResponse ParaResponse(Reserva r, UsuarioAtual usuario, DateTimeOffset agora) =>
+    private static ReservaResponse MontarResponse(Reserva r, UsuarioAtual usuario, DateTimeOffset agora) =>
         new(
             r.Id,
             r.Titulo,
