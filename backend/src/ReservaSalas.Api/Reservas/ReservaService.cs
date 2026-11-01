@@ -59,7 +59,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         // DbUpdateConcurrencyException (409), sem sobrescrever a outra gravação.
         db.Entry(reserva).Property(r => r.Versao).OriginalValue = versaoVista;
 
-        var antes = Dados(reserva);
+        var antes = ConverterReservaParaDadosReserva(reserva);
         reserva.Editar(salaId, titulo, inicio, fim, agora);
 
         // O conflito só pode surgir na sala de destino; sair de uma sala apenas libera horário.
@@ -82,7 +82,7 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
         await using var transacao = await db.Database.BeginTransactionAsync(ct);
 
         var reserva = await ObterParaAlteracaoAsync(reservaId, usuario, ct);
-        var antes = Dados(reserva);
+        var antes = ConverterReservaParaDadosReserva(reserva);
         reserva.Cancelar();
 
         RegistrarHistorico(reserva, AcaoReserva.Cancelamento, usuario.Id, agora, antes);
@@ -133,11 +133,13 @@ public class ReservaService(ReservasDbContext db, TimeProvider relogio)
     private void RegistrarHistorico(
         Reserva reserva, AcaoReserva acao, int usuarioId, DateTimeOffset agora, DadosReserva? antes)
     {
-        var dados = JsonSerializer.Serialize(new { antes, depois = Dados(reserva) }, OpcoesHistorico);
+        var depois = ConverterReservaParaDadosReserva(reserva);
+        var dados = JsonSerializer.Serialize(new { antes, depois }, OpcoesHistorico);
         db.ReservasHistorico.Add(new ReservaHistorico(reserva, acao, usuarioId, agora, dados));
     }
 
-    private static DadosReserva Dados(Reserva r) => new(r.SalaId, r.Titulo, r.Inicio, r.Fim, r.Status);
+    private static DadosReserva ConverterReservaParaDadosReserva(Reserva r) =>
+        new(r.SalaId, r.Titulo, r.Inicio, r.Fim, r.Status);
 
     private sealed record DadosReserva(
         int SalaId, string Titulo, DateTimeOffset Inicio, DateTimeOffset Fim, StatusReserva Status);
