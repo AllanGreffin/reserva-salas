@@ -106,6 +106,3 @@ app.UseRateLimiter();
 app.MapControllers();
 
 app.Run();
-
-// Torna o Program acessível à WebApplicationFactory dos testes de integração.
-public partial class Program;
