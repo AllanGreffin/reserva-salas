@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using ReservaSalas.Api.Autenticacao;
 using ReservaSalas.Api.Datas;
+using ReservaSalas.Api.Documentacao;
 using ReservaSalas.Api.Erros;
 using ReservaSalas.Api.Persistencia;
 using ReservaSalas.Api.Reservas;
@@ -84,7 +85,7 @@ builder.Services.AddControllers()
         o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         o.JsonSerializerOptions.Converters.Add(new DateTimeOffsetComFusoConverter());
     });
-builder.Services.AddOpenApi();
+builder.Services.AdicionarDocumentacaoComAutenticacaoJwt();
 
 var app = builder.Build();
 
@@ -92,9 +93,11 @@ app.UseExceptionHandler();
 // Respostas de erro sem corpo (401 do JwtBearer, 429 do rate limiter, 404 de rota) também viram Problem Details.
 app.UseStatusCodePages();
 
-if (app.Environment.IsDevelopment())
+if (DocumentacaoOpenApi.EstaHabilitada(app))
 {
     app.MapOpenApi().AllowAnonymous();
+    // Interface em /swagger, lendo o documento gerado pelo MapOpenApi.
+    app.UseSwaggerUI(opcoes => opcoes.SwaggerEndpoint("/openapi/v1.json", "Reserva de Salas"));
 }
 
 app.UseHttpsRedirection();

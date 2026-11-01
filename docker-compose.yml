@@ -1,7 +1,9 @@
 # Sobe banco, migrations, API e frontend: copie .env.example para .env, preencha e rode
 #   docker compose up --build
-# A aplicação fica em http://localhost:8080. Só o frontend (nginx) é exposto; API e banco
-# ficam na rede interna do compose.
+# Endereços:
+#   http://localhost:8080          aplicação (nginx: Angular + /api)
+#   http://localhost:8081/swagger  API direta, com Swagger UI (só nesta máquina)
+#   127.0.0.1,14330                SQL Server, login sa e senha SQL_SENHA_SA (só nesta máquina)
 
 name: reserva-salas
 
@@ -13,6 +15,10 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: ${SQL_SENHA_SA:?Defina SQL_SENHA_SA no .env (veja .env.example)}
+    # Só em 127.0.0.1, para SSMS ou similar. 14330, e não 1433, para não colidir com um SQL Server
+    # instalado na máquina.
+    ports:
+      - "127.0.0.1:14330:1433"
     volumes:
       - dados-sql:/var/opt/mssql
     healthcheck:
@@ -40,10 +46,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       # Lê o IP real do X-Forwarded-For enviado pelo nginx (rate limit por cliente, não por proxy).
-      # Seguro só porque a API não é acessível de fora da rede do compose.
+      # Confia no header de qualquer origem: aceitável porque a porta direta da API só escuta em 127.0.0.1.
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       ConnectionStrings__ReservaSalas: *conexao
       Jwt__ChaveAssinatura: ${JWT_CHAVE:?Defina JWT_CHAVE no .env (veja .env.example)}
+      # Documento OpenAPI e Swagger UI também fora do ambiente de desenvolvimento.
+      OpenApi__Habilitado: "true"
+    # Acesso direto à API (Swagger), só em 127.0.0.1. O navegador usa a aplicação pelo nginx.
+    ports:
+      - "127.0.0.1:8081:8080"
     depends_on:
       migrations:
         condition: service_completed_successfully

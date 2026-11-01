@@ -32,6 +32,13 @@ docker compose up --build
 
 A aplicação fica em **http://localhost:8080**, com os usuários do seed abaixo. A ordem de subida é automática: o SQL Server fica saudável, as migrations (schema + seed) são aplicadas e só então a API e o frontend sobem. A primeira execução baixa as imagens e compila tudo, o que leva alguns minutos.
 
+Para inspecionar a API e os dados, o compose também publica, só em `127.0.0.1`:
+
+| O quê | Endereço | Acesso |
+|---|---|---|
+| Swagger UI da API | http://localhost:8081/swagger | Faça login em `POST /api/auth/login`, clique em **Authorize** e cole o token |
+| SQL Server | `127.0.0.1,14330` (SSMS, Azure Data Studio etc.) | Login `sa`, senha `SQL_SENHA_SA` do `.env`, banco `ReservaSalas` |
+
 ```bash
 docker compose down -v   # para tudo e apaga o volume do banco
 ```
@@ -71,6 +78,8 @@ Em containers ou em produção, use a variável de ambiente `Jwt__ChaveAssinatur
 cd backend
 dotnet run --project src/ReservaSalas.Api --launch-profile http   # http://localhost:5221
 ```
+
+Em desenvolvimento, o Swagger UI fica em http://localhost:5221/swagger.
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -243,6 +252,7 @@ backend/
 - **Rate limit de login em memória, por instância:** com várias réplicas, o limite efetivo é multiplicado pelo número de réplicas.
 - **Sem retry automático de falhas transitórias do banco (`EnableRetryOnFailure`).** A estratégia de retry do EF Core é incompatível com transações abertas manualmente, como as do `ReservaService`, a menos que cada operação seja envolvida em `Database.CreateExecutionStrategy().ExecuteAsync(...)`. Num SQL Server local ou em container, falhas transitórias são raras.
 - **No docker-compose, a API conecta como `sa`** e tudo é servido em HTTP.
+- **O compose publica a API e o banco em `127.0.0.1`** para facilitar a inspeção (Swagger e SSMS). Em produção, essas portas não seriam publicadas: o acesso humano ao banco passaria por VPN, com logins individuais e somente leitura (ver "Execução com Docker").
 - **A paginação por offset fica mais lenta em páginas muito profundas** (ver "Filtro e paginação").
 - **O histórico (RN05) é gravado, mas não é exibido** na interface: o enunciado não pede uma tela para ele.
 - **O frontend não tem testes de ponta a ponta automatizados:** os fluxos foram verificados manualmente no navegador (os cenários estão listados em "Frontend").
@@ -286,7 +296,7 @@ Cada criação, edição e cancelamento grava um `ReservaHistorico` (ação, usu
 - **Claims:** `sub` (id), `name` e `role` (perfil). O perfil vem do token, e não de uma releitura do banco: a API fica stateless, ao custo de uma mudança de perfil só valer após a expiração do token.
 - **Login:** `POST /api/auth/login`. Credenciais inválidas retornam 401 com uma mensagem genérica. Quando o login não existe, o código ainda verifica um hash falso, para que o tempo de resposta não revele quais logins existem (medido: ~80 ms para login existente e ~74 ms para inexistente; sem isso, o inexistente responderia em 1 ou 2 ms).
 - **Rate limiting no login:** 5 tentativas por minuto por IP (429 depois disso), configurável em `Login:TentativasPorMinuto`. Atrás do nginx (docker-compose), a API lê o IP real do `X-Forwarded-For` (ver "Execução com Docker"). Limitação conhecida: o contador fica em memória, por instância. É uma proteção de melhor esforço contra força bruta, diferente da exclusão mútua, que precisa ser exata e por isso fica no banco.
-- **Seguro por padrão:** uma *fallback policy* exige autenticação em todos os endpoints. Só o login (e o OpenAPI em desenvolvimento) é anônimo.
+- **Seguro por padrão:** uma *fallback policy* exige autenticação em todos os endpoints. Só o login e a documentação (OpenAPI e Swagger UI, quando habilitados) são anônimos.
 - **Propriedade (403):** `Reserva.PertenceAoUsuarioOuEhAdministrador` fica no Domain, com teste unitário. O `ReservaService` a verifica dentro da transação, depois de carregar a reserva e antes de alterá-la. Reserva inexistente responde 404 antes do 403: todas as reservas são visíveis a todos, então a existência não é segredo. O *resource-based authorization* do ASP.NET (`IAuthorizationService`) foi descartado por espalhar a regra entre controller e handler.
 - **O responsável é sempre o usuário do token:** os DTOs de entrada não têm campo de usuário, então o cliente não consegue forjar o dono da reserva.
 
@@ -419,11 +429,13 @@ navegador ──► web (nginx :8080) ──► /api ──► api (.NET :8080) 
                          migrations (aplica e termina)
 ```
 
-- **Só o frontend é exposto** (`localhost:8080`). API e banco ficam na rede interna do compose, inacessíveis de fora. O nginx serve o Angular (com fallback de SPA) e repassa `/api` à API, então o navegador fala com uma única origem e não há CORS.
+- **O navegador fala só com o nginx** (`localhost:8080`). O nginx serve o Angular (com fallback de SPA) e repassa `/api` à API, então a aplicação usa uma única origem e não há CORS.
+- **API e banco publicados só em `127.0.0.1`**, para inspeção: a API na 8081, com o Swagger UI (habilitado fora do desenvolvimento por `OpenApi__Habilitado`), e o SQL Server na 14330, e não na 1433, para não colidir com uma instância instalada na máquina. Ligadas só ao loopback, essas portas não são alcançáveis por outras máquinas da rede. Num ambiente público, elas não seriam publicadas: o acesso ficaria atrás de VPN, e o banco teria logins individuais e somente leitura no lugar do `sa`.
+- **Swagger com JWT:** o documento OpenAPI descreve o esquema Bearer, e só os endpoints que exigem autenticação o declaram (o login, anônimo, não). Assim, o botão **Authorize** do Swagger UI envia o token nas chamadas protegidas.
 - **Imagens multi-stage e sem root:** a imagem final da API tem só o runtime do ASP.NET (sem SDK nem código-fonte) e roda com o usuário `app` das imagens do .NET. O frontend usa o `nginx-unprivileged`.
 - **Migrations num serviço próprio** (EF Core *migration bundle*), que roda depois que o banco fica saudável e antes da API (`service_completed_successfully`). Aplicar migrations na inicialização da API exigiria dar à aplicação permissão de DDL só para isso, e uma migration com falha derrubaria a API.
 - **Segredos no `.env`** (não versionado), documentados no `.env.example`. O compose usa `${VAR:?mensagem}` e se recusa a subir se faltar a senha do banco ou a chave JWT.
-- **IP real atrás do proxy:** o nginx **sobrescreve** o `X-Forwarded-For` com o IP do cliente, e a API o lê (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`). Sem isso, a API veria o IP do nginx em todas as requisições, e o rate limit de login seria global: cinco tentativas de qualquer pessoa bloqueariam todo mundo. Esse modo confia no header vindo de qualquer origem, o que só é seguro porque a API não é acessível de fora da rede do compose. Verificado: forjar o header não burla o limite, e outro cliente continua conseguindo entrar enquanto o primeiro está bloqueado.
+- **IP real atrás do proxy:** o nginx **sobrescreve** o `X-Forwarded-For` com o IP do cliente, e a API o lê (`ASPNETCORE_FORWARDEDHEADERS_ENABLED`). Sem isso, a API veria o IP do nginx em todas as requisições, e o rate limit de login seria global: cinco tentativas de qualquer pessoa bloqueariam todo mundo. Esse modo confia no header vindo de qualquer origem. Isso é aceitável porque a porta direta da API só escuta em `127.0.0.1`: quem consegue forjar o header ali já está na própria máquina. Se a API fosse publicada para outras máquinas, seria preciso restringir os proxies confiáveis (`KnownProxies`) ao nginx. Verificado: forjar o header não burla o limite, e outro cliente continua conseguindo entrar enquanto o primeiro está bloqueado.
 - **Lockfile do npm gerado em Linux:** o `package-lock.json` gerado no Windows não incluía dependências opcionais de plataforma usadas pelo build no Linux, e o `npm ci` falhava no container. O lock foi regenerado num container Linux com a mesma versão do npm.
 - **Limitações:** a API conecta ao banco como `sa` (em produção, haveria um login com permissões mínimas), e o compose serve HTTP (em produção, o TLS terminaria no nginx ou num balanceador).
 
@@ -438,3 +450,4 @@ navegador ──► web (nginx :8080) ──► /api ──► api (.NET :8080) 
 ### Dependências adicionais
 
 - **`System.Security.Cryptography.Pkcs` referenciado diretamente:** o `Microsoft.Data.SqlClient` 6.1.7, trazido pelo EF Core, depende da versão 9.0.11, que tem vulnerabilidades conhecidas (GHSA-846f-f764-76mx, GHSA-2fmv-rv2c-59x7). A referência direta força uma versão corrigida e pode ser removida quando o SqlClient atualizar.
+- **`Swashbuckle.AspNetCore.SwaggerUI`, só a interface:** desde o .NET 9, o documento OpenAPI é gerado pelo próprio ASP.NET (`Microsoft.AspNetCore.OpenApi`). Do Swashbuckle, uso apenas o Swagger UI, que lê esse documento em `/openapi/v1.json`.
