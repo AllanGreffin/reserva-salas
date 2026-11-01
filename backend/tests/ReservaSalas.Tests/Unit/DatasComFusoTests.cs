@@ -1,4 +1,4 @@
-using ReservaSalas.Api.Json;
+using ReservaSalas.Api.Datas;
 
 namespace ReservaSalas.Tests.Unit;
 

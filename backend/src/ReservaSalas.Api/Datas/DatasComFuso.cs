@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace ReservaSalas.Api.Json;
+namespace ReservaSalas.Api.Datas;
 
 /// <summary>
 /// RN06 na entrada: só aceita data/hora ISO 8601 com fuso explícito ("Z" ou "±hh:mm"). Sem fuso,

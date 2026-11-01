@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace ReservaSalas.Api.Json;
+namespace ReservaSalas.Api.Datas;
 
 /// <summary>Aplica <see cref="DatasComFuso"/> às datas do corpo JSON.</summary>
 public class DateTimeOffsetComFusoConverter : JsonConverter<DateTimeOffset>
