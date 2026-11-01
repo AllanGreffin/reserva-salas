@@ -187,7 +187,7 @@ backend/
 │       ├── Reservas/                controller, ReservaService (escrita), ReservaConsultas (leitura), DTOs, filtro
 │       ├── Salas/                   controller e consulta de salas
 │       ├── Erros/                   tratamento global de exceções
-│       ├── Json/                    datas com fuso obrigatório (RN06)
+│       ├── Datas/                   datas com fuso obrigatório na entrada, JSON e query string (RN06)
 │       └── Data/                    DbContext, configurações do EF, migrations e seed
 └── tests/
     └── ReservaSalas.Tests/          Unit/ e Integration/
